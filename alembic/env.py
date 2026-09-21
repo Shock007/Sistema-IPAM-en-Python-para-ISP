@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.config import DATABASE_URL
 from app.database import Base
-from app.models import Subnet, Client, IPAddress, IPStateHistory  # noqa: F401 (registra metadata)
+from app.Models import Subnet, Client, IPAddress, IPStateHistory  # noqa: F401 (registra metadata)
 
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)

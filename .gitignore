@@ -25,3 +25,8 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/app/__pycache__
+/app/crud/__pycache__
+/app/Models/__pycache__
+/alembic/__pycache__
+/alembic/versions/__pycache__
