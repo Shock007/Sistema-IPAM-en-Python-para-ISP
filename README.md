@@ -1,58 +1,57 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# IPAM Python — Fase 1
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Estructura base del backend: ORM (SQLAlchemy), migraciones (Alembic) y CRUD
+manual de subredes, clientes e IPs. Compatible con **PostgreSQL** y **MySQL**
+sin cambiar código, solo `DATABASE_URL`.
 
-## About Laravel
+## Estructura
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```
+ipam-python/
+├── app/
+│   ├── config.py          # Lectura de variables de entorno
+│   ├── database.py        # Engine, Session, Base declarativa
+│   ├── models/             # Subnet, Client, IPAddress, IPStateHistory
+│   └── crud/                # Funciones CRUD por entidad
+├── alembic/                 # Migraciones
+│   └── versions/0001_initial_schema.py
+├── alembic.ini
+├── demo_crud.py            # Script de prueba manual
+├── requirements.txt
+└── .env.example
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## Modelo de datos
 
-## Contributing
+- **Subnet**: `cidr` (único), `name`, `description`, `vlan_id`.
+- **Client**: `full_name`, `document_id` (único), `email`, `phone`, `address`,
+  `wisphub_client_id` (para la integración de la Fase 2), `is_active`.
+- **IPAddress**: `ip_address` (único), `subnet_id` (FK), `client_id` (FK
+  nullable), `status` (`FREE` / `ASSIGNED` / `ACTIVE`), `description`.
+- **IPStateHistory**: bitácora de cambios de estado (`method`: `PING`, `TCP`,
+  `WISPHUB`, `MANUAL`) — se llenará en la Fase 2 con el motor de escaneo.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Puesta en marcha
 
-## Code of Conduct
+```bash
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+cp .env.example .env   # editar DATABASE_URL (Postgres o MySQL)
 
-## Security Vulnerabilities
+alembic upgrade head    # crea las tablas
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+python demo_crud.py     # prueba manual del CRUD
+```
 
-## License
+## Cambiar de motor de BD
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Solo se edita `DATABASE_URL` en `.env`:
+
+- PostgreSQL: `postgresql+psycopg2://user:pass@host:5432/db`
+- MySQL: `mysql+pymysql://user:pass@host:3306/db`
+
+## Siguiente fase
+
+Fase 2 usará `IPStateHistory` y el campo `wisphub_client_id` de `Client` para
+el motor de verificación (ping, sockets TCP, adaptador WispHub).

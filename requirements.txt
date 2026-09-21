@@ -1,0 +1,11 @@
+SQLAlchemy>=2.0,<3.0
+alembic>=1.13,<2.0
+python-dotenv>=1.0
+psycopg2-binary>=2.9   # driver PostgreSQL
+PyMySQL>=1.1           # driver MySQL
+pydantic>=2.6,<3.0
+
+# Se agregaran en fases posteriores:
+# fastapi
+# uvicorn
+# apscheduler
