@@ -23,6 +23,9 @@ def record_result(db: Session, ip_id: int, is_up: bool, method: CheckMethod,
     - No responde y estaba ASSIGNED         -> se mantiene ASSIGNED (la
       asignación es administrativa, no depende de que responda o no).
     """
+    if isinstance(method, str):
+        method = CheckMethod(method)
+
     ip_obj = ip_crud.get_ip(db, ip_id)
     if not ip_obj:
         raise ValueError(f"IP con id={ip_id} no existe en la base de datos.")
@@ -39,17 +42,27 @@ def record_result(db: Session, ip_id: int, is_up: bool, method: CheckMethod,
         if previous_status == IPStatus.ACTIVE.value:
             new_status = IPStatus.FREE.value
 
-    if new_status != previous_status:
-        ip_crud.update_ip_status(db, ip_id, IPStatus(new_status))
+    # Transacción atómica: el cambio de estado y su registro en el
+    # historial se confirman juntos (un solo commit) o no se confirma
+    # ninguno de los dos (rollback), evitando que un fallo a mitad de
+    # camino deje la IP y la bitácora desincronizadas.
+    try:
+        if new_status != previous_status:
+            ip_crud.update_ip_status(db, ip_id, IPStatus(new_status), commit=False)
 
-    history_crud.create_history(
-        db,
-        ip_id=ip_id,
-        previous_status=previous_status,
-        new_status=new_status,
-        method=method,
-        details=details,
-    )
+        history_crud.create_history(
+            db,
+            ip_id=ip_id,
+            previous_status=previous_status,
+            new_status=new_status,
+            method=method,
+            details=details,
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "ip_id": ip_id,

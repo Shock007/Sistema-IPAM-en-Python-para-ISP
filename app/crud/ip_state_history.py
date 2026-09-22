@@ -6,9 +6,14 @@ from app.Models.ip_state_history import IPStateHistory, CheckMethod
 
 def create_history(db: Session, ip_id: int, previous_status: str | None,
                     new_status: str, method: CheckMethod,
-                    details: str | None = None) -> IPStateHistory:
+                    details: str | None = None, commit: bool = True) -> IPStateHistory:
     """Inserta una fila de bitácora. Se llama desde el módulo de Evaluación
-    cada vez que se ejecuta una verificación (PING, TCP, WispHub, manual)."""
+    cada vez que se ejecuta una verificación (PING, TCP, WispHub, manual).
+
+    `commit=False` permite agrupar esta inserción con otra operación (como
+    la actualización de ip_addresses.status) dentro de una misma
+    transacción atómica.
+    """
     obj = IPStateHistory(
         ip_id=ip_id,
         previous_status=previous_status,
@@ -17,8 +22,11 @@ def create_history(db: Session, ip_id: int, previous_status: str | None,
         details=details,
     )
     db.add(obj)
-    db.commit()
-    db.refresh(obj)
+    if commit:
+        db.commit()
+        db.refresh(obj)
+    else:
+        db.flush()
     return obj
 
 

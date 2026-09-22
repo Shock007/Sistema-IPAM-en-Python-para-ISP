@@ -2,7 +2,7 @@
 Ejercita manualmente la "consulta única" de la Fase 2.
 
 Uso:
-    python demo_single_query.py 8.8.8.8
+    python demo_single_query.py 192.168.1.10
     python demo_single_query.py 192.168.1.10 --tcp --pin 231451267
 """
 import argparse

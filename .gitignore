@@ -30,3 +30,4 @@ Thumbs.db
 /app/Models/__pycache__
 /alembic/__pycache__
 /alembic/versions/__pycache__
+/app/services/__pycache__

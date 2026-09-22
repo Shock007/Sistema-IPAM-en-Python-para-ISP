@@ -50,13 +50,23 @@ def assign_ip(db: Session, ip_id: int, client_id: int | None, description: str |
     return obj
 
 
-def update_ip_status(db: Session, ip_id: int, status: IPStatus) -> IPAddress | None:
+def update_ip_status(db: Session, ip_id: int, status: IPStatus,
+                      commit: bool = True) -> IPAddress | None:
+    """Actualiza el estado de una IP.
+
+    `commit=False` permite que el llamador (p. ej. el Módulo de Evaluación)
+    agrupe este cambio junto con otra operación (como insertar en
+    ip_state_history) dentro de una misma transacción atómica.
+    """
     obj = db.get(IPAddress, ip_id)
     if not obj:
         return None
     obj.status = status
-    db.commit()
-    db.refresh(obj)
+    if commit:
+        db.commit()
+        db.refresh(obj)
+    else:
+        db.flush()
     return obj
 
 
