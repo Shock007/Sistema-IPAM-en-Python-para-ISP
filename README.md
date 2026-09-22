@@ -2,27 +2,26 @@
 
 Un sistema integral de **IPAM** (*IP Address Management*) diseñado para la administración, monitoreo, asignación y diagnóstico asíncrono de redes y subredes para ISPs y gestores de red.
 
-Combining a **Python** backend core for async network scanning and database management with a **Laravel/Tailwind CSS** frontend, the system allows full visibility over IP allocation, client assignments, and reachability history.
+Al combinar un núcleo de backend en **Python** para el escaneo de red asíncrono y la gestión de bases de datos con un frontend en **Laravel/Tailwind CSS**, el sistema ofrece una visibilidad completa de la asignación de direcciones IP, las asignaciones a clientes y el historial de conectividad.
 
 ---
 
 ## 🚀 Estado Actual y Avances del Proyecto
 
 ### Phase 1: Core IPAM Engine & Database (Completado)
-- **Multi-DB Support:** Agnostic ORM setup with **SQLAlchemy 2.0** and **Alembic**, fully compatible with **PostgreSQL** and **MySQL**.
-- **Data Models:** Relational management of `Subnet`, `Client`, `IPAddress`, and `IPStateHistory`.
-- **State Auditing:** Automatic log creation (`IPStateHistory`) on state changes and diagnostic query events.
-
+- **Multi-DB Support:** Configuración de ORM agnóstica con **SQLAlchemy 2.0** y **Alembic**, totalmente compatible con **PostgreSQL** y **MySQL**.
+- **Data Models:** Gestión relacional de `Subnet`, `Client`, `IPAddress`, y `IPStateHistory`.
+- **State Auditing:** Cración automatica de registros (`IPStateHistory`) sobre cambios de estado y eventos de consulta de diagnóstico.
 ### Phase 2: Async Diagnostic Engine & Range Scanner (Completado)
-- **ICMP Ping Service (`ping_service.py`):** Cross-platform execution (Windows, Linux, macOS) without requiring elevated root privileges.
-- **Async Range Scanner (`range_scanner.py`):** Asynchronous subnet/range ping scans using `asyncio` bounded by semaphore limits (`MAX_HOSTS_PER_SCAN = 1024`).
-- **Deep TCP Port Scanner (`tcp_scanner.py`):** Async probing on strategic network management ports (80, 443, 8291 [Winbox/Mikrotik], 22, 53, 8080, 23).
-- **Security Authorization (`authorization.py`):** PIN-protected execution layer for heavy/intrusive network scans (`PROVIDER_PIN`).
-- **State Evaluation Engine (`evaluation.py` / `single_query.py`):** Automated logic to evaluate IP responsiveness and update statuses (`FREE`, `ASSIGNED`, `ACTIVE`).
-- **WispHub Adapter Stub (`wisphub_adapter.py`):** Interface prepared for sync with the WispHub API.
+- **ICMP Ping Service (`ping_service.py`):** Ejecución multiplataforma (Windows, Linux, macOS) sin necesidad de privilegios elevados de root.
+- **Async Range Scanner (`range_scanner.py`):** Escaneos de ping de subred/rango asíncronos usando `asyncio` delimitado por límites de semáforo (`MAX_HOSTS_PER_SCAN = 1024`).
+- **Deep TCP Port Scanner (`tcp_scanner.py`):** Sondeo asíncrono en puertos estratégicos de gestión de red (80, 443, 8291 [Winbox/Mikrotik], 22, 53, 8080, 23).
+- **Security Authorization (`authorization.py`):** Capa de ejecución protegida por PIN para escaneos de red intensivos o intrusivos. (`PROVIDER_PIN`).
+- **State Evaluation Engine (`evaluation.py` / `single_query.py`):** Lógica automatizada para evaluar la capacidad de respuesta de las IP y actualizar los estados. (`FREE`, `ASSIGNED`, `ACTIVE`).
+- **WispHub Adapter Stub (`wisphub_adapter.py`):** Interfaz preparada para la sincronización con el WispHub API.
 
 ### Phase 3: Web Dashboard Integration (En Desarrollo)
-- **Laravel / Vite / Tailwind CSS v4 setup** integrated into the structure to expose APIs and provide an interactive web interface.
+- **Laravel / Vite / Tailwind CSS v4 setup** integrado en la estructura para exponer API y proporcionar una interfaz web interactiva.
 
 ---
 
