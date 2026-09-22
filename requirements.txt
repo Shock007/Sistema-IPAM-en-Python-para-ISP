@@ -4,8 +4,8 @@ python-dotenv>=1.0
 psycopg2-binary>=2.9   # driver PostgreSQL
 PyMySQL>=1.1           # driver MySQL
 pydantic>=2.6,<3.0
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
 
-# Se agregaran en fases posteriores:
-# fastapi
-# uvicorn
+# Se agregara en la siguiente etapa (automatizacion de escaneos):
 # apscheduler
