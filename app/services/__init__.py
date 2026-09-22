@@ -4,6 +4,8 @@ from app.services.authorization import authorize_tcp_scan, UnauthorizedTCPScanEr
 from app.services.evaluation import record_result
 from app.services.single_query import query_single_ip
 from app.services.wisphub_adapter import WispHubAdapter, WispHubService
+# app/services/__init__.py
+from app.services.authorization import authorize_tcp_scan, UnauthorizedTCPScanError, MissingProviderPinError
 from app.services.range_scanner import (
     build_ip_list,
     ips_from_range,
@@ -21,7 +23,6 @@ __all__ = [
     "DEFAULT_PORTS",
     "authorize_tcp_scan",
     "UnauthorizedTCPScanError",
-    "PROVIDER_PIN",
     "record_result",
     "query_single_ip",
     "WispHubAdapter",

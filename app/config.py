@@ -14,3 +14,8 @@ DATABASE_URL: str = os.getenv(
 )
 
 SQL_ECHO: bool = os.getenv("SQL_ECHO", "false").lower() == "true"
+
+# PIN de autorización para consultas vía Sockets TCP (ver app/services/authorization.py).
+# Mecanismo temporal, mientras el proveedor no defina un flujo real
+# (token firmado, API key, OAuth, lista blanca de IPs, etc.).
+PROVIDER_PIN: str | None = os.getenv("PROVIDER_PIN")
