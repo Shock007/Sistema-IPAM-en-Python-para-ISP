@@ -1,150 +1,140 @@
-# 🌐 IPAM System - Gestión de Direcciones IP & Diagnóstico de Red
+# IPAM System (IP Address Management)
 
-Un sistema integral de **IPAM** (*IP Address Management*) diseñado para la administración, monitoreo, asignación y diagnóstico asíncrono de redes y subredes para ISPs y gestores de red.
-
-Al combinar un núcleo de backend en **Python** para el escaneo de red asíncrono y la gestión de bases de datos con un frontend en **Laravel/Tailwind CSS**, el sistema ofrece una visibilidad completa de la asignación de direcciones IP, las asignaciones a clientes y el historial de conectividad.
+Un sistema de gestión y monitoreo de direcciones IP orientado a Proveedores de Servicios de Internet (ISPs) y redes corporativas. Permite la administración manual de subredes, clientes e IPs, el escaneo ligero de red mediante Sockets TCP/Ping, la integración con APIS externas (WispHub) y el consumo de datos mediante una API REST desarrollada en FastAPI.
 
 ---
 
-## 🚀 Estado Actual y Avances del Proyecto
+## 🛠️ Tecnologías Utilizadas
 
-### Phase 1: Core IPAM Engine & Database (Completado)
-- **Multi-DB Support:** Configuración de ORM agnóstica con **SQLAlchemy 2.0** y **Alembic**, totalmente compatible con **PostgreSQL** y **MySQL**.
-- **Data Models:** Gestión relacional de `Subnet`, `Client`, `IPAddress`, y `IPStateHistory`.
-- **State Auditing:** Cración automatica de registros (`IPStateHistory`) sobre cambios de estado y eventos de consulta de diagnóstico.
-### Phase 2: Async Diagnostic Engine & Range Scanner (Completado)
-- **ICMP Ping Service (`ping_service.py`):** Ejecución multiplataforma (Windows, Linux, macOS) sin necesidad de privilegios elevados de root.
-- **Async Range Scanner (`range_scanner.py`):** Escaneos de ping de subred/rango asíncronos usando `asyncio` delimitado por límites de semáforo (`MAX_HOSTS_PER_SCAN = 1024`).
-- **Deep TCP Port Scanner (`tcp_scanner.py`):** Sondeo asíncrono en puertos estratégicos de gestión de red (80, 443, 8291 [Winbox/Mikrotik], 22, 53, 8080, 23).
-- **Security Authorization (`authorization.py`):** Capa de ejecución protegida por PIN para escaneos de red intensivos o intrusivos. (`PROVIDER_PIN`).
-- **State Evaluation Engine (`evaluation.py` / `single_query.py`):** Lógica automatizada para evaluar la capacidad de respuesta de las IP y actualizar los estados. (`FREE`, `ASSIGNED`, `ACTIVE`).
-- **WispHub Adapter Stub (`wisphub_adapter.py`):** Interfaz preparada para la sincronización con el WispHub API.
-
-### Phase 3: Web Dashboard Integration (En Desarrollo)
-- **Laravel / Vite / Tailwind CSS v4 setup** integrado en la estructura para exponer API y proporcionar una interfaz web interactiva.
+- **Lenguaje:** Python 3.10+
+- **Framework Web / API:** FastAPI + Uvicorn
+- **ORM & Base de Datos:** SQLAlchemy 2.0 (compatible con PostgreSQL / MySQL / SQLite)
+- **Migraciones:** Alembic
+- **Redes & Concurrencia:** `asyncio`, Sockets TCP, Ping ICMP (`ping3` / `subprocess`)
+- **Gestión de Entorno:** `python-dotenv`
 
 ---
 
-## 📂 Estructura del Proyecto
+## 📁 Estructura del Proyecto
 
 ```text
-.
+ipam-system/
 ├── app/
-│   ├── Models/                     # Modelos de SQLAlchemy
-│   │   ├── client.py               # Modelo Client
-│   │   ├── ip_address.py           # Modelo IPAddress
-│   │   ├── ip_state_history.py     # Modelo IPStateHistory
-│   │   └── subnet.py               # Modelo Subnet
-│   ├── services/                   # Motores de Diagnóstico y Red
-│   │   ├── authorization.py        # Validación de PIN para escaneos
-│   │   ├── evaluation.py           # Lógica de transición de estados de IP
-│   │   ├── ping_service.py         # Motor ejecutor de Ping ICMP
-│   │   ├── range_scanner.py        # Escaneo asíncrono de rangos/subredes
-│   │   ├── single_query.py         # Consulta y diagnóstico individual
-│   │   ├── tcp_scanner.py          # Escaneo asíncrono de puertos TCP (Mikrotik, SSH, Web)
-│   │   └── wisphub_adapter.py      # Adaptador de integración WispHub
-│   ├── config.py                   # Configuración y variables de entorno Python
-│   └── database.py                 # Conexión SQLAlchemy y Session Local
-├── alembic/                        # Migraciones de base de datos con Alembic
-├── demo_crud.py                    # Script ejecutable de demostración CRUD
-├── demo_range_scan.py              # Script ejecutable de demostración de escaneo
-├── bootstrap/                      # Core de arranque Laravel
-├── config/                         # Configuraciones de Laravel
-├── database/                       # Migraciones y seeders de Laravel
-├── resources/                      # Vistas Blade y CSS/JS (Tailwind CSS v4)
-├── routes/                         # Rutas de Laravel (web, api)
-├── alembic.ini                     # Configuración de Alembic
-├── requirements.txt                # Dependencias de Python
-└── package.json                    # Dependencias de Node/Vite/Tailwind
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── v1/
+│   │       ├── __init__.py
+│   │       ├── endpoints.py     # Endpoints de FastAPI (/ips, /scan, /assign)
+│   │       └── schemas.py       # Pydantic Schemas (Request/Response)
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── config.py        # Configuración centralizada y Variables de Entorno
+│   │   └── database.py      # Conexión y sesión de ORM (SQLAlchemy)
+│   ├── crud/
+│   │   ├── __init__.py
+│   │   ├── crud_ip.py       # Operaciones CRUD para IPs
+│   │   ├── crud_subnet.py   # Operaciones CRUD para Subredes
+│   │   └── crud_client.py   # Operaciones CRUD para Clientes
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── models.py        # Modelos ORM (Subnet, Client, IPAddress, IPStateHistory)
+│   └── services/
+│       ├── __init__.py
+│       ├── scanner.py       # NetworkScanner (Ping ICMP + Sockets TCP Async)
+│       ├── wisphub.py       # Adaptador API WispHub
+│       └── evaluator.py     # Motor de agregación e historial (ip_state_history)
+├── alembic/                 # Configuración y scripts de migraciones de BBDD
+├── demos/
+│   ├── demo_crud.py         # Demo script: Gestión manual CRUD
+│   ├── demo_scanner.py      # Demo script: Escaneo de red y agregación
+│   └── demo_wisphub.py      # Demo script: Consulta a la API WispHub
+├── .env.example
+├── alembic.ini
+├── main.py                  # Punto de entrada principal (FastAPI App)
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-## 🗄️ Modelo de Datos
+## 📊 Modelo de Datos
 
-```mermaid
-erDiagram
-    SUBNET ||--o{ IP_ADDRESS : contains
-    CLIENT ||--o{ IP_ADDRESS : owns
-    IP_ADDRESS ||--o{ IP_STATE_HISTORY : logs
+El sistema maneja un esquema relacional diseñado para rastrear subredes, asignaciones a clientes, el estado actual de cada dirección IP y el historial de cambios detectados por el motor de evaluación.
 
-    SUBNET {
-        string id PK
-        string cidr
-        string network_address
-        int netmask
-        string gateway
-        int vlan_id
-        string description
-    }
-
-    CLIENT {
-        string id PK
-        string wisphub_client_id
-        string name
-        string email
-        string phone
-        string status
-    }
-
-    IP_ADDRESS {
-        string id PK
-        string subnet_id FK
-        string client_id FK
-        string ip_address
-        enum state "FREE, ASSIGNED, ACTIVE"
-        datetime last_ping_at
-        datetime created_at
-        datetime updated_at
-    }
-
-    IP_STATE_HISTORY {
-        string id PK
-        string ip_address_id FK
-        enum previous_state "FREE, ASSIGNED, ACTIVE"
-        enum new_state "FREE, ASSIGNED, ACTIVE"
-        string reason
-        datetime timestamp
-    }
+```text
++-------------------+       +-------------------+
+|      Subnet       |       |      Client       |
++-------------------+       +-------------------+
+| id (PK)           |       | id (PK)           |
+| cidr              |       | name              |
+| description       |       | code / ref        |
++---------+---------+       +---------+---------+
+          |                           |
+          | 1                         | 1
+          |                           |
+          +----------+     +----------+
+                     |     |
+                     v     v
+             +---------------+
+             |   IPAddress   |
+             +---------------+
+             | id (PK)       |
+             | ip_address    |
+             | subnet_id(FK) |
+             | client_id(FK) |
+             | status        | --> (FREE, ASSIGNED, ACTIVE, RESERVED)
+             | description   |
+             | last_seen     |
+             +-------+-------+
+                     |
+                     | 1
+                     v N
+            +-------------------+
+            |  IPStateHistory   |
+            +-------------------+
+            | id (PK)           |
+            | ip_address_id(FK) |
+            | previous_status   |
+            | new_status        |
+            | source            | --> (SCANNER, WISPHUB, MANUAL)
+            | details (JSON/Txt)|
+            | timestamp         |
+            +-------------------+
 ```
-
-### Detalle de Entidades
-
-1. **Subnet (`subnets`)**:
-   - `id`: Identificador único UUID.
-   - `cidr`: Notación CIDR (ej. `192.168.1.0/24`).
-   - `network_address`: Dirección de red.
-   - `netmask`: Máscara de red en formato numérico/CIDR.
-   - `gateway`: Puerta de enlace predeterminada.
-   - `vlan_id`: Identificador VLAN opcional.
-
-2. **Client (`clients`)**:
-   - `id`: Identificador interno.
-   - `wisphub_client_id`: ID externo de integración con WispHub.
-   - `name`, `email`, `phone`: Información general de contacto.
-   - `status`: Estado del cliente en la plataforma.
-
-3. **IPAddress (`ip_addresses`)**:
-   - `ip_address`: Dirección IP estática (ej. `192.168.1.50`).
-   - `state`: Estado actual (`FREE`, `ASSIGNED`, `ACTIVE`).
-   - `last_ping_at`: Fecha y hora de la última respuesta exitosa por ICMP.
-
-4. **IPStateHistory (`ip_state_histories`)**:
-   - Bitácora de auditoría que registra las transiciones entre estados (`previous_state` -> `new_state`) con timestamp y razón del cambio (ej. "Escaneo de rango detectó host activo").
 
 ---
 
-## 🛠️ Requisitos Previos e Instalación
+## 🚀 Fases de Desarrollo & Avances
 
-### Requisitos
-- **Python:** 3.10 o superior (Recomendado 3.13)
-- **Base de Datos:** SQLite (para pruebas rápidas), PostgreSQL o MySQL.
-- **Node.js:** v18+ (para recursos de frontend).
+### ✅ Fase 1: Estructura de Proyecto y Base de Datos
+- **ORM & BBDD:** Configuración de SQLAlchemy con soporte para PostgreSQL, MySQL y SQLite.
+- **Migraciones:** Implementación de Alembic para el control de versiones de esquema.
+- **Módulo CRUD:** Funciones de administración manual para subredes, clientes y asignación de direcciones IP.
 
-### Instalación de Entorno Python
+### ✅ Fase 2: Motor de Verificación Ligero
+- **Módulo NetworkScanner (Sin Nmap):**
+  - Verificación ICMP (Ping) rápida.
+  - Sockets TCP asíncronos (`asyncio.open_connection`) orientados a puertos clave ISP (`80`, `443`, `8291` [MikroTik], `22`, `53`, `8080`, `23`).
+- **Adaptador WispHub:** Integración con la API externa de WispHub para consultar servicios activos vinculados a IPs.
+- **Motor de Evaluación:** Consolidación de datos de escaneo/WispHub con registro automático de cambios en `ip_state_history`.
 
-1. Clonar o extraer el proyecto en la ruta deseada.
-2. Crear y activar un entorno virtual:
+### 🚀 Avance Fase 3: API REST (FastAPI)
+Desarrollo del servicio web expuesto con las siguientes rutas:
+- `GET /api/v1/ips`: Obtención de listado de IPs con filtros opcionales por estado (`FREE`, `ASSIGNED`, `ACTIVE`) y subred (`subnet_id`).
+- `POST /api/v1/ips/scan`: Disparo del proceso de escaneo (síncrono o asíncrono) sobre un rango o subred.
+- `PUT /api/v1/ips/{ip}/assign`: Asignación de titular/cliente, descripción y cambio de estado a una dirección IP específica.
+
+---
+
+## ⚙️ Instalación y Configuración
+
+1. **Clonar el repositorio e ingresar al directorio:**
+   ```bash
+   git clone https://github.com/tu-usuario/ipam-system.git
+   cd ipam-system
+   ```
+
+2. **Crear y activar un entorno virtual:**
    ```bash
    python -m venv venv
    # En Linux/macOS:
@@ -152,65 +142,71 @@ erDiagram
    # En Windows:
    venv\Scripts\activate
    ```
-3. Instalar las dependencias de Python:
+
+3. **Instalar dependencias:**
    ```bash
    pip install -r requirements.txt
    ```
-4. Configurar el archivo de entorno `.env` en la raíz (puedes crear uno a partir del ejemplo):
-   ```ini
-   DATABASE_URL=sqlite:///./ipam.db
-   PROVIDER_PIN=231451267
+
+4. **Variables de Entorno:**
+   Copia el archivo `.env.example` a `.env` y ajusta las credenciales:
+   ```env
+   DATABASE_URL=postgresql://usuario:password@localhost:5432/ipam_db
+   WISPHUB_API_KEY=tu_api_key_aqui
+   WISPHUB_API_URL=https://api.wisphub.net/api/v1
    ```
-5. Aplicar migraciones con Alembic:
+
+5. **Ejecutar migraciones de base de datos:**
    ```bash
    alembic upgrade head
    ```
 
 ---
 
-## 🖥️ Instrucciones para Ejecutar las Demos
+## 💻 Guía de Uso y Demos
 
-El proyecto incluye dos scripts ejecutables interactivos en consola que permiten probar el motor de base de datos y los servicios de red asíncronos.
-
-### Demo 1: Gestión CRUD de Datos (`demo_crud.py`)
-
-Esta demo permite ejercitar la creación, consulta y asociación de Clientes, Subredes y Direcciones IP.
-
-**Ejecución:**
+### 1. Ejecución del Servidor API REST
+Inicia el servidor backend interactivo:
 ```bash
-python demo_crud.py
+uvicorn main:app --reload
 ```
+Accede a la documentación interactiva Swagger UI en: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-**Funcionalidades de la Demo:**
-- Registro automático de datos de prueba (Clientes de ejemplo, Subred `10.0.0.0/24`).
-- Asignación de IPs a clientes.
-- Consulta e impresión en consola del estado de las tablas de la base de datos.
+**Ejemplos de endpoints:**
+- **Listar IPs activas:** `GET /api/v1/ips?status=ACTIVE`
+- **Asignar IP a Cliente:** `PUT /api/v1/ips/192.168.1.50/assign`
+  ```json
+  {
+    "client_id": 1,
+    "description": "Router Cliente Juan Pérez",
+    "status": "ASSIGNED"
+  }
+  ```
+- **Disparar Escaneo:** `POST /api/v1/ips/scan`
+  ```json
+  {
+    "cidr": "192.168.1.0/24",
+    "async_mode": true
+  }
+  ```
 
 ---
 
-### Demo 2: Escaneo de Rangos y Diagnóstico de Red (`demo_range_scan.py`)
+### 2. Demos Interactivas por Consola
 
-Esta demo interactiva permite realizar escaneos ICMP asíncronos por bloques de red o rangos de IPs especificadas, mostrando en tiempo real el estado de respuesta y actualización en la base de datos.
+Puedes probar individualmente los componentes principales usando los scripts ubicados en la carpeta `demos/`:
 
-**Ejecución:**
-```bash
-python demo_range_scan.py
-```
+- **Demo CRUD (Creación de subredes, clientes y asignaciones):**
+  ```bash
+  python -m demos.demo_crud
+  ```
 
-**Flujo del Escaneo:**
-1. **Verificación de PIN:** El script solicitará el PIN del proveedor antes de habilitar escaneos avanzados (PIN por defecto: `231451267`).
-2. **Selección de Modo:**
-   - **Opción A:** Escaneo por CIDR/Red (Ejemplo: `192.168.1.0/28`).
-   - **Opción B:** Escaneo por Rango de IPs (Ejemplo: `192.168.1.1` a `192.168.1.30`).
-   - **Opción C:** Diagnóstico individual de IP con escaneo de puertos TCP clave (Winbox 8291, Web 80/443, SSH 22).
-3. **Resultado:** Visualización de latencia, IPs activas/inactivas y el registro en la bitácora `IPStateHistory`.
+- **Demo WispHub (Consulta de API externa):**
+  ```bash
+  python -m demos.demo_wisphub --ip 192.168.1.100
+  ```
 
----
-
-## 🔒 Autorización de Seguridad
-
-Para la ejecución de escaneos de puertos y diagnósticos invasivos se requiere validación por PIN de proveedor administrado por `authorization.py`. El PIN se configura mediante la variable de entorno `PROVIDER_PIN`.
-
-```bash
-# Cambiar el PIN de autorización en producción
-export PROVIDER_PIN="TuPINSeguro123"
+- **Demo NetworkScanner (Escaneo TCP + Ping + Agregación de Estado):**
+  ```bash
+  python -m demos.demo_scanner --range 192.168.1.0/28
+  ```
