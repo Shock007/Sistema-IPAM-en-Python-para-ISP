@@ -4,7 +4,7 @@ Esquemas Pydantic (request/response) para la API REST de la Fase 3.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, model_validator
 
 from app.Models.ip_address import IPStatus
 
@@ -39,6 +39,26 @@ class IPAssignRequest(BaseModel):
         description="Estado a fijar. Por defecto ASSIGNED al asignar un titular.",
     )
 
+    @model_validator(mode="after")
+    def _check_status_client_consistency(self) -> "IPAssignRequest":
+        """Reglas de negocio (ver app/services/evaluation.py):
+
+        - ACTIVE lo determina el motor de evaluación (ping/tcp); no se
+          asigna manualmente desde este endpoint.
+        - ASSIGNED es un vínculo administrativo: requiere un client_id.
+        - FREE significa sin titular: no debe llevar client_id.
+        """
+        if self.status == IPStatus.ACTIVE:
+            raise ValueError(
+                "El estado ACTIVE lo determina el motor de evaluación "
+                "(ping/tcp) y no puede asignarse manualmente aquí."
+            )
+        if self.status == IPStatus.ASSIGNED and self.client_id is None:
+            raise ValueError("El estado ASSIGNED requiere indicar 'client_id'.")
+        if self.status == IPStatus.FREE and self.client_id is not None:
+            raise ValueError("Una IP en estado FREE no puede tener 'client_id'.")
+        return self
+
 
 # --- Scan ----------------------------------------------------------------
 
@@ -48,10 +68,13 @@ class ScanRangeRequest(BaseModel):
     Acepta un rango explícito (start_ip/end_ip) O una red (address/netmask).
     """
 
-    start_ip: Optional[str] = None
-    end_ip: Optional[str] = None
-    address: Optional[str] = None
-    netmask: Optional[str] = None
+    start_ip: Optional[IPvAnyAddress] = None
+    end_ip: Optional[IPvAnyAddress] = None
+    address: Optional[IPvAnyAddress] = None
+    netmask: Optional[str] = Field(
+        default=None,
+        description="Prefijo CIDR ('24') o máscara decimal ('255.255.255.0').",
+    )
 
     concurrency: int = Field(default=30, ge=1, le=200)
     timeout: int = Field(default=2, ge=1, le=30)

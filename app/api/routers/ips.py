@@ -5,6 +5,7 @@ Router: /api/v1/ips
 - POST   /api/v1/ips/scan        -> dispara un escaneo (síncrono o en segundo plano)
 - PUT    /api/v1/ips/{ip}/assign -> asigna titular/estado/descripción a una IP
 """
+import ipaddress
 from typing import Optional, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response, status
@@ -19,6 +20,7 @@ from app.api.schemas import (
     ScanRangeRequest,
     ScanSummary,
 )
+from app.crud import client as client_crud
 from app.crud import ip_address as ip_crud
 from app.Models.ip_address import IPStatus
 from app.services.range_scanner import build_ip_list, run_range_scan
@@ -63,9 +65,9 @@ async def scan_ips(
     """
     try:
         ips = build_ip_list(
-            start_ip=payload.start_ip,
-            end_ip=payload.end_ip,
-            address=payload.address,
+            start_ip=str(payload.start_ip) if payload.start_ip else None,
+            end_ip=str(payload.end_ip) if payload.end_ip else None,
+            address=str(payload.address) if payload.address else None,
             netmask=payload.netmask,
         )
     except ValueError as exc:
@@ -97,12 +99,28 @@ async def scan_ips(
 def assign_ip(ip: str, payload: IPAssignRequest, db: Session = Depends(get_db)):
     """Asigna (o desasigna, con client_id=null) un titular a una IP existente,
     junto con su descripción y estado."""
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"'{ip}' no es una dirección IP válida.",
+        ) from exc
+
     ip_obj = ip_crud.get_ip_by_address(db, ip)
     if not ip_obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"La IP {ip} no está registrada en la base de datos.",
         )
+
+    if payload.client_id is not None:
+        cliente = client_crud.get_client(db, payload.client_id)
+        if not cliente:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"El cliente con id={payload.client_id} no existe.",
+            )
 
     updated = ip_crud.assign_ip(
         db,

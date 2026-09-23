@@ -31,3 +31,7 @@ Thumbs.db
 /alembic/__pycache__
 /alembic/versions/__pycache__
 /app/services/__pycache__
+/tests/python/__pycache__
+/app/api/__pycache__
+.pytest_cache
+/app/api/routers/__pycache__
