@@ -35,3 +35,4 @@ Thumbs.db
 /app/api/__pycache__
 .pytest_cache
 /app/api/routers/__pycache__
+__pycache__
