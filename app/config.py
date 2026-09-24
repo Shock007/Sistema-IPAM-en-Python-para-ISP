@@ -19,3 +19,9 @@ SQL_ECHO: bool = os.getenv("SQL_ECHO", "false").lower() == "true"
 # Mecanismo temporal, mientras el proveedor no defina un flujo real
 # (token firmado, API key, OAuth, lista blanca de IPs, etc.).
 PROVIDER_PIN: str | None = os.getenv("PROVIDER_PIN")
+
+# --- Automatización (APScheduler) ---------------------------------------
+SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
+SCAN_INTERVAL_HOURS: int = int(os.getenv("SCAN_INTERVAL_HOURS", "6"))
+SCAN_CONCURRENCY: int = int(os.getenv("SCAN_CONCURRENCY", "30"))
+SCAN_TIMEOUT: int = int(os.getenv("SCAN_TIMEOUT", "2"))

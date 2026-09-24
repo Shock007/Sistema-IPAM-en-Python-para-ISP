@@ -1,136 +1,109 @@
-# IPAM System (IP Address Management)
+# IPAM System - Gestor de Subredes e IP Audit System
 
-Un sistema de gestión y monitoreo de direcciones IP orientado a Proveedores de Servicios de Internet (ISPs) y redes corporativas. Permite la administración manual de subredes, clientes e IPs, el escaneo ligero de red mediante Sockets TCP/Ping, la integración con APIS externas (WispHub) y el consumo de datos mediante una API REST desarrollada en FastAPI.
+IPAM System es una solución modular en Python diseñada para la administración de direcciones IP, subredes y clientes. Incorpora un motor de verificación ligero de conectividad y una API REST moderna para automatizar la auditoría de estado de red.
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## 🏗️ Estado del Proyecto y Avances
 
-- **Lenguaje:** Python 3.10+
-- **Framework Web / API:** FastAPI + Uvicorn
-- **ORM & Base de Datos:** SQLAlchemy 2.0 (compatible con PostgreSQL / MySQL / SQLite)
-- **Migraciones:** Alembic
-- **Redes & Concurrencia:** `asyncio`, Sockets TCP, Ping ICMP (`ping3` / `subprocess`)
-- **Gestión de Entorno:** `python-dotenv`
+El desarrollo se ha estructurado en fases incrementales:
+
+*   **Fase 1: Estructura de Proyecto y BBDD (Completada)**
+    *   Configuración del proyecto en Python con **SQLAlchemy** (ORM compatible con PostgreSQL y MySQL).
+    *   Diseño del modelo de datos e implementación de migraciones iniciales.
+    *   Módulo CRUD completo para la administración manual de subredes, clientes e IPs.
+*   **Fase 2: Motor de Verificación Ligero (Completada)**
+    *   **Integración WispHub:** Adaptador API para consultar servicios activos vinculados por IP.
+    *   **NetworkScanner (Sin Nmap):** 
+        *   Verificación rápida vía Ping ICMP.
+        *   Sockets TCP asíncronos (`asyncio.open_connection`) a puertos estratégicos ISP (`80`, `443`, `8291`, `22`, `53`, `8080`, `23`).
+    *   **Módulo de Evaluación:** Agregación de resultados e inserción histórica automática en `ip_state_history`.
+*   **Fase 3: API REST y Automatización (En desarrollo - Avance Actual)**
+    *   **API REST con FastAPI:**
+        *   `GET /api/v1/ips`: Consulta de IPs con filtros por estado (`FREE`, `ASSIGNED`, `ACTIVE`) y subred.
+        *   `POST /api/v1/ips/scan`: Disparo de escaneos de rangos IP (síncronos o en segundo plano).
+        *   `PUT /api/v1/ips/{ip}/assign`: Asignación de titular, descripción y estado manual.
+    *   **Automatización:** Tareas programadas con **APScheduler** para ejecutar auditorías periódicas de red (configurable a 6, 12 o 24 horas).
+
+---
+
+## 🗄️ Modelo de Datos
+
+```
++-------------------+          +-------------------+          +---------------------+
+|      Client       |          |      Subnet       |          |      IPAddress      |
++-------------------+          +-------------------+          +---------------------+
+| id (PK)           |<----+    | id (PK)           |<----+    | id (PK)             |
+| name              |     |    | network           |     |    | ip_address (Unique) |
+| wisphub_id        |     +----| name              |     +----| subnet_id (FK)      |
+| contact_info      |          | vlan_id           |          | client_id (FK)      |
++-------------------+          +-------------------+          | status              |
+                                                              | last_seen           |
+                                                              +---------------------+
+                                                                         |
+                                                                         | 1:N
+                                                                         v
+                                                              +---------------------+
+                                                              |  IPStateHistory     |
+                                                              +---------------------+
+                                                              | id (PK)             |
+                                                              | ip_id (FK)          |
+                                                              | status              |
+                                                              | icmp_status         |
+                                                              | open_ports (JSON)   |
+                                                              | wisphub_status      |
+                                                              | checked_at          |
+                                                              +---------------------+
+```
 
 ---
 
 ## 📁 Estructura del Proyecto
 
 ```text
-ipam-system/
+ipam_system/
+│
 ├── app/
 │   ├── api/
-│   │   ├── __init__.py
 │   │   └── v1/
-│   │       ├── __init__.py
-│   │       ├── endpoints.py     # Endpoints de FastAPI (/ips, /scan, /assign)
-│   │       └── schemas.py       # Pydantic Schemas (Request/Response)
+│   │       ├── endpoints/
+│   │       │   ├── ips.py          # Endpoints API (Listar, Escanear, Asignar)
+│   │       │   └── subnets.py      # Endpoints de subredes
+│   │       └── router.py           # Enrutador principal de API
 │   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py        # Configuración centralizada y Variables de Entorno
-│   │   └── database.py      # Conexión y sesión de ORM (SQLAlchemy)
-│   ├── crud/
-│   │   ├── __init__.py
-│   │   ├── crud_ip.py       # Operaciones CRUD para IPs
-│   │   ├── crud_subnet.py   # Operaciones CRUD para Subredes
-│   │   └── crud_client.py   # Operaciones CRUD para Clientes
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── models.py        # Modelos ORM (Subnet, Client, IPAddress, IPStateHistory)
-│   └── services/
-│       ├── __init__.py
-│       ├── scanner.py       # NetworkScanner (Ping ICMP + Sockets TCP Async)
-│       ├── wisphub.py       # Adaptador API WispHub
-│       └── evaluator.py     # Motor de agregación e historial (ip_state_history)
-├── alembic/                 # Configuración y scripts de migraciones de BBDD
-├── demos/
-│   ├── demo_crud.py         # Demo script: Gestión manual CRUD
-│   ├── demo_scanner.py      # Demo script: Escaneo de red y agregación
-│   └── demo_wisphub.py      # Demo script: Consulta a la API WispHub
-├── .env.example
-├── alembic.ini
-├── main.py                  # Punto de entrada principal (FastAPI App)
-├── requirements.txt
+│   │   ├── config.py               # Configuración global y variables de entorno
+│   │   └── database.py             # Conexión SQLAlchemy y gestión de sesión
+│   ├── crud/                       # Lógica de operaciones sobre BBDD
+│   │   ├── crud_ip.py
+│   │   └── crud_subnet.py
+│   ├── models/                     # Modelos SQLAlchemy (Subnet, IPAddress, Client, IPStateHistory)
+│   ├── schemas/                    # Esquemas Pydantic para validación de API
+│   ├── services/
+│   │   ├── network_scanner.py      # Motor Asyncio + ICMP / Sockets TCP
+│   │   ├── wisphub_adapter.py      # Adaptador API para WispHub
+│   │   └── evaluator.py            # Consolidador de estados e inserción en historial
+│   ├── tasks/
+│   │   └── scheduler.py            # Configuración e integración de APScheduler
+│   └── main.py                     # Punto de entrada de la aplicación FastAPI
+│
+├── demo.py                         # Script interactivo de demostración
+├── requirements.txt                # Dependencias del proyecto
 └── README.md
 ```
 
 ---
 
-## 📊 Modelo de Datos
+## 🛠️ Requisitos e Instalación
 
-El sistema maneja un esquema relacional diseñado para rastrear subredes, asignaciones a clientes, el estado actual de cada dirección IP y el historial de cambios detectados por el motor de evaluación.
+### Requisitos previos
+* Python 3.9+
+* PostgreSQL o MySQL (opcional en desarrollo, SQLite soportado por defecto)
 
-```text
-+-------------------+       +-------------------+
-|      Subnet       |       |      Client       |
-+-------------------+       +-------------------+
-| id (PK)           |       | id (PK)           |
-| cidr              |       | name              |
-| description       |       | code / ref        |
-+---------+---------+       +---------+---------+
-          |                           |
-          | 1                         | 1
-          |                           |
-          +----------+     +----------+
-                     |     |
-                     v     v
-             +---------------+
-             |   IPAddress   |
-             +---------------+
-             | id (PK)       |
-             | ip_address    |
-             | subnet_id(FK) |
-             | client_id(FK) |
-             | status        | --> (FREE, ASSIGNED, ACTIVE, RESERVED)
-             | description   |
-             | last_seen     |
-             +-------+-------+
-                     |
-                     | 1
-                     v N
-            +-------------------+
-            |  IPStateHistory   |
-            +-------------------+
-            | id (PK)           |
-            | ip_address_id(FK) |
-            | previous_status   |
-            | new_status        |
-            | source            | --> (SCANNER, WISPHUB, MANUAL)
-            | details (JSON/Txt)|
-            | timestamp         |
-            +-------------------+
-```
+### Instalación
 
----
-
-## 🚀 Fases de Desarrollo & Avances
-
-### ✅ Fase 1: Estructura de Proyecto y Base de Datos
-- **ORM & BBDD:** Configuración de SQLAlchemy con soporte para PostgreSQL, MySQL y SQLite.
-- **Migraciones:** Implementación de Alembic para el control de versiones de esquema.
-- **Módulo CRUD:** Funciones de administración manual para subredes, clientes y asignación de direcciones IP.
-
-### ✅ Fase 2: Motor de Verificación Ligero
-- **Módulo NetworkScanner (Sin Nmap):**
-  - Verificación ICMP (Ping) rápida.
-  - Sockets TCP asíncronos (`asyncio.open_connection`) orientados a puertos clave ISP (`80`, `443`, `8291` [MikroTik], `22`, `53`, `8080`, `23`).
-- **Adaptador WispHub:** Integración con la API externa de WispHub para consultar servicios activos vinculados a IPs.
-- **Motor de Evaluación:** Consolidación de datos de escaneo/WispHub con registro automático de cambios en `ip_state_history`.
-
-### 🚀 Avance Fase 3: API REST (FastAPI)
-Desarrollo del servicio web expuesto con las siguientes rutas:
-- `GET /api/v1/ips`: Obtención de listado de IPs con filtros opcionales por estado (`FREE`, `ASSIGNED`, `ACTIVE`) y subred (`subnet_id`).
-- `POST /api/v1/ips/scan`: Disparo del proceso de escaneo (síncrono o asíncrono) sobre un rango o subred.
-- `PUT /api/v1/ips/{ip}/assign`: Asignación de titular/cliente, descripción y cambio de estado a una dirección IP específica.
-
----
-
-## ⚙️ Instalación y Configuración
-
-1. **Clonar el repositorio e ingresar al directorio:**
+1. **Clonar el repositorio y entrar al directorio:**
    ```bash
-   git clone https://github.com/tu-usuario/ipam-system.git
+   git clone https://github.com/usuario/ipam-system.git
    cd ipam-system
    ```
 
@@ -148,65 +121,53 @@ Desarrollo del servicio web expuesto con las siguientes rutas:
    pip install -r requirements.txt
    ```
 
-4. **Variables de Entorno:**
-   Copia el archivo `.env.example` a `.env` y ajusta las credenciales:
+4. **Variables de entorno:**
+   Crea un archivo `.env` en la raíz del proyecto basándote en el siguiente ejemplo:
    ```env
-   DATABASE_URL=postgresql://usuario:password@localhost:5432/ipam_db
+   DATABASE_URL=sqlite:///./ipam.db
    WISPHUB_API_KEY=tu_api_key_aqui
-   WISPHUB_API_URL=https://api.wisphub.net/api/v1
-   ```
-
-5. **Ejecutar migraciones de base de datos:**
-   ```bash
-   alembic upgrade head
+   WISPHUB_BASE_URL=https://api.wisphub.net/v1
+   SCAN_INTERVAL_HOURS=12
    ```
 
 ---
 
-## 💻 Guía de Uso y Demos
+## 🚀 Uso y Demos
 
-### 1. Ejecución del Servidor API REST
-Inicia el servidor backend interactivo:
+### 1. Iniciar la API REST con Servidor de Desarrollo
+Para ejecutar la aplicación con el programador de tareas activo:
+
 ```bash
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 ```
-Accede a la documentación interactiva Swagger UI en: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-**Ejemplos de endpoints:**
-- **Listar IPs activas:** `GET /api/v1/ips?status=ACTIVE`
-- **Asignar IP a Cliente:** `PUT /api/v1/ips/192.168.1.50/assign`
+Accede a la documentación interactiva OpenAPI/Swagger en:
+* **Swagger UI:** `http://127.0.0.1:8000/docs`
+* **ReDoc:** `http://127.0.0.1:8000/redoc`
+
+#### Endpoints Principales:
+* `GET /api/v1/ips?status=FREE&subnet_id=1` - Obtener lista de IPs filtrada.
+* `POST /api/v1/ips/scan` - Ejecutar escaneo de red.
   ```json
   {
-    "client_id": 1,
-    "description": "Router Cliente Juan Pérez",
-    "status": "ASSIGNED"
+    "subnet_cidr": "192.168.1.0/24",
+    "async_execution": true
   }
   ```
-- **Disparar Escaneo:** `POST /api/v1/ips/scan`
-  ```json
-  {
-    "cidr": "192.168.1.0/24",
-    "async_mode": true
-  }
-  ```
+* `PUT /api/v1/ips/192.168.1.50/assign` - Asignar cliente o descripción a una IP.
 
 ---
 
-### 2. Demos Interactivas por Consola
+### 2. Ejecución de Scripts de Demo
 
-Puedes probar individualmente los componentes principales usando los scripts ubicados en la carpeta `demos/`:
+Puedes probar directamente las funciones de las distintas fases con el script interactivo `demo.py`:
 
-- **Demo CRUD (Creación de subredes, clientes y asignaciones):**
-  ```bash
-  python -m demos.demo_crud
-  ```
+```bash
+python demo.py
+```
 
-- **Demo WispHub (Consulta de API externa):**
-  ```bash
-  python -m demos.demo_wisphub --ip 192.168.1.100
-  ```
-
-- **Demo NetworkScanner (Escaneo TCP + Ping + Agregación de Estado):**
-  ```bash
-  python -m demos.demo_scanner --range 192.168.1.0/28
-  ```
+#### Opciones disponibles en la Demo:
+1. **Poblado Inicial y CRUD:** Crea subredes de prueba y registros de IP iniciales.
+2. **Escaneo de Red Ligero (Ping + Sockets):** Lanza una auditoría inmediata sobre una subred sin pasar por la API REST.
+3. **Consulta WispHub:** Prueba la integración y obtención de estado desde WispHub para una IP específica.
+4. **Prueba de Endpoint /api/v1/ips/scan:** Realiza una petición simulada a la API para verificar el flujo completo con inserción en `ip_state_history`.
