@@ -140,7 +140,10 @@ Para ejecutar la aplicación con el programador de tareas activo:
 ```bash
 uvicorn app.main:app --reload
 ```
-
+Aplica las migraciones (desde la raíz del proyecto, con el venv activado)
+```bash
+alembic upgrade head
+```
 Accede a la documentación interactiva OpenAPI/Swagger en:
 * **Swagger UI:** `http://127.0.0.1:8000/docs`
 * **ReDoc:** `http://127.0.0.1:8000/redoc`
