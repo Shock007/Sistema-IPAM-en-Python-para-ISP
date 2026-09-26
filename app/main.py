@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.api.routers.clients import router as clients_router
 from app.api.routers.ips import router as ips_router
 from app.api.routers.subnets import router as subnets_router
 
@@ -38,6 +39,7 @@ app.add_middleware(
 
 app.include_router(ips_router)
 app.include_router(subnets_router)
+app.include_router(clients_router)
 
 # Dashboard estático: sirve static/dashboard/index.html en /dashboard/
 app.mount(

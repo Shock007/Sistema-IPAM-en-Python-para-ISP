@@ -1,13 +1,11 @@
-// Paso 3: consume /api/v1/subnets y /api/v1/ips, y arma el grid agrupado
-// por subred. Los filtros (select de subred/estado) y el modal de detalle
-// se activan en los Pasos 4 y 5; por ahora el click en una celda solo
-// muestra un resumen con alert() a modo de verificación.
+// Paso 4: colores dinámicos (ya vienen de STATUS_CLASSES desde el Paso 3;
+// aquí se refuerzan con badges en el modal) + modal de detalle en vez de
+// alert(). El filtrado por subred/estado se activa en el Paso 5.
 
 const API_BASE = ""; // mismo origen (FastAPI sirve API y dashboard juntos)
 
 // Límite alto para traer todo en una sola llamada mientras el volumen de
-// datos es pequeño. Si el proyecto crece, esto debe migrar a paginación
-// real en el backend (el endpoint ya soporta skip/limit).
+// datos es pequeño. Si el proyecto crece, migrar a paginación real.
 const FETCH_LIMIT = 500;
 
 const STATUS_LABELS = {
@@ -16,10 +14,19 @@ const STATUS_LABELS = {
     ACTIVE: "Activa sin registrar",
 };
 
+// Clases para las celdas del grid (definidas en css/style.css).
 const STATUS_CLASSES = {
     FREE: "ip-free",
     ASSIGNED: "ip-assigned",
     ACTIVE: "ip-active",
+};
+
+// Clases de Bootstrap para el badge del modal (mismos colores, distinto
+// mecanismo de estilo porque el badge usa el sistema de "bg-*" de Bootstrap).
+const STATUS_BADGE_CLASSES = {
+    FREE: "bg-success",
+    ASSIGNED: "bg-danger",
+    ACTIVE: "bg-warning text-dark",
 };
 
 const statusEl = document.getElementById("status");
@@ -27,6 +34,30 @@ const gridContainer = document.getElementById("ips-grid-container");
 const lastUpdatedEl = document.getElementById("last-updated");
 const refreshBtn = document.getElementById("refresh-btn");
 
+// --- Modal de detalle -----------------------------------------------------
+const ipDetailModalEl = document.getElementById("ipDetailModal");
+const ipDetailModal = new bootstrap.Modal(ipDetailModalEl);
+const modalIp = document.getElementById("modal-ip");
+const modalStatusBadge = document.getElementById("modal-status-badge");
+const modalSubnet = document.getElementById("modal-subnet");
+const modalClient = document.getElementById("modal-client");
+const modalDescription = document.getElementById("modal-description");
+
+function openIpModal(ip, subnet, client) {
+    modalIp.textContent = ip.ip_address;
+
+    const statusLabel = STATUS_LABELS[ip.status] || ip.status;
+    modalStatusBadge.textContent = statusLabel;
+    modalStatusBadge.className = `badge ${STATUS_BADGE_CLASSES[ip.status] || "bg-secondary"}`;
+
+    modalSubnet.textContent = subnet ? `${subnet.cidr} — ${subnet.name}` : "(subred desconocida)";
+    modalClient.textContent = client ? client.full_name : "Sin cliente asignado";
+    modalDescription.textContent = ip.description || "Sin descripción";
+
+    ipDetailModal.show();
+}
+
+// --- Utilidades -------------------------------------------------------------
 function setStatus(message, variant) {
     statusEl.textContent = message;
     statusEl.className = `alert alert-${variant} py-2 px-3 small`;
@@ -49,31 +80,23 @@ async function fetchJson(path) {
     return res.json();
 }
 
-function buildCell(ip) {
+// --- Construcción del grid ---------------------------------------------
+function buildCell(ip, subnet, clientsById) {
     const cell = document.createElement("div");
     const statusClass = STATUS_CLASSES[ip.status] || "bg-secondary";
     cell.className = `ip-cell ${statusClass}`;
     cell.textContent = ip.ip_address.split(".").pop(); // último octeto, celda compacta
+    cell.title = `${ip.ip_address} — ${STATUS_LABELS[ip.status] || ip.status} (clic para más detalle)`;
 
-    const statusLabel = STATUS_LABELS[ip.status] || ip.status;
-    const detalle = [
-        `IP: ${ip.ip_address}`,
-        `Estado: ${statusLabel}`,
-        ip.client_id ? `Cliente ID: ${ip.client_id}` : "Sin cliente asignado",
-        ip.description ? `Descripción: ${ip.description}` : null,
-    ]
-        .filter(Boolean)
-        .join("\n");
-
-    cell.title = detalle;
-
-    // Placeholder de interacción; el Paso 4 reemplaza esto por un modal.
-    cell.addEventListener("click", () => alert(detalle));
+    cell.addEventListener("click", () => {
+        const client = ip.client_id ? clientsById.get(ip.client_id) : null;
+        openIpModal(ip, subnet, client);
+    });
 
     return cell;
 }
 
-function buildSubnetBlock(subnet, ips) {
+function buildSubnetBlock(subnet, ips, clientsById) {
     const wrapper = document.createElement("div");
     wrapper.className = "subnet-block card";
 
@@ -91,7 +114,7 @@ function buildSubnetBlock(subnet, ips) {
     grid.className = "ip-grid";
 
     ips.sort((a, b) => (ipSortKey(a) > ipSortKey(b) ? 1 : -1));
-    ips.forEach((ip) => grid.appendChild(buildCell(ip)));
+    ips.forEach((ip) => grid.appendChild(buildCell(ip, subnet, clientsById)));
 
     body.appendChild(title);
     body.appendChild(grid);
@@ -99,7 +122,7 @@ function buildSubnetBlock(subnet, ips) {
     return wrapper;
 }
 
-function renderGrid(subnets, ips) {
+function renderGrid(subnets, ips, clients) {
     gridContainer.innerHTML = "";
 
     if (ips.length === 0) {
@@ -108,6 +131,9 @@ function renderGrid(subnets, ips) {
         return;
     }
 
+    const clientsById = new Map(clients.map((c) => [c.id, c]));
+    const subnetsById = new Map(subnets.map((s) => [s.id, s]));
+
     const ipsBySubnet = new Map();
     ips.forEach((ip) => {
         if (!ipsBySubnet.has(ip.subnet_id)) {
@@ -115,8 +141,6 @@ function renderGrid(subnets, ips) {
         }
         ipsBySubnet.get(ip.subnet_id).push(ip);
     });
-
-    const subnetsById = new Map(subnets.map((s) => [s.id, s]));
 
     // Subredes con IPs, ordenadas por CIDR.
     const orderedSubnetIds = [...ipsBySubnet.keys()].sort((a, b) => {
@@ -131,19 +155,23 @@ function renderGrid(subnets, ips) {
             cidr: "(subred desconocida)",
             name: "",
         };
-        gridContainer.appendChild(buildSubnetBlock(subnet, ipsBySubnet.get(subnetId)));
+        gridContainer.appendChild(
+            buildSubnetBlock(subnet, ipsBySubnet.get(subnetId), clientsById)
+        );
     });
 }
 
+// --- Carga principal ------------------------------------------------------
 async function loadDashboard() {
     setStatus("Cargando datos de la API...", "secondary");
     try {
-        const [subnets, ips] = await Promise.all([
+        const [subnets, ips, clients] = await Promise.all([
             fetchJson(`/api/v1/subnets?limit=${FETCH_LIMIT}`),
             fetchJson(`/api/v1/ips?limit=${FETCH_LIMIT}`),
+            fetchJson(`/api/v1/clients?limit=${FETCH_LIMIT}`),
         ]);
 
-        renderGrid(subnets, ips);
+        renderGrid(subnets, ips, clients);
 
         setStatus(`Conectado a la API. ${ips.length} IP(s) en ${subnets.length} subred(es).`, "success");
         lastUpdatedEl.textContent = `Última actualización: ${new Date().toLocaleTimeString()}`;

@@ -101,6 +101,23 @@ class ScanRangeRequest(BaseModel):
             )
         return self
 
+# --- Client -----------------------------------------------------------
+
+class ClientRead(BaseModel):
+    """Representación de salida de un Client (mapea el modelo ORM)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    full_name: str
+    document_id: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
 # --- Subnet ---------------------------------------------------------------
 
 class SubnetRead(BaseModel):
