@@ -8,6 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, model_validato
 
 from app.Models.ip_address import IPStatus
 
+from datetime import datetime
+
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
 
 # --- IPAddress ---------------------------------------------------------
 
@@ -96,6 +101,20 @@ class ScanRangeRequest(BaseModel):
             )
         return self
 
+# --- Subnet ---------------------------------------------------------------
+
+class SubnetRead(BaseModel):
+    """Representación de salida de una Subnet (mapea el modelo ORM)."""
+ 
+    model_config = ConfigDict(from_attributes=True)
+ 
+    id: int
+    cidr: str
+    name: str
+    description: Optional[str] = None
+    vlan_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
 
 class ScanDetail(BaseModel):
     ip_address: str

@@ -1,29 +1,21 @@
 """
-Punto de entrada de la API REST (Fase 3).
+Punto de entrada de la API REST (Fase 3) + Dashboard estático (Fase 4).
 
 Ejecutar en desarrollo:
     uvicorn app.main:app --reload
 
 Documentación interactiva:
     http://127.0.0.1:8000/docs
-"""
-from contextlib import asynccontextmanager
 
+Dashboard:
+    http://127.0.0.1:8000/dashboard/
+"""
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routers.ips import router as ips_router
-from app.api.routers.scheduler import router as scheduler_router
-from app.config import SCHEDULER_ENABLED
-from app.services.scheduler import shutdown_scheduler, start_scheduler
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    if SCHEDULER_ENABLED:
-        start_scheduler()
-    yield
-    shutdown_scheduler()
-
+from app.api.routers.subnets import router as subnets_router
 
 app = FastAPI(
     title="IPAM System API",
@@ -32,11 +24,27 @@ app = FastAPI(
         "red (PING) y asignación de titulares."
     ),
     version="0.4.0",
-    lifespan=lifespan,
+)
+
+# CORS: permite que el dashboard consuma la API aunque en el futuro (Fase 4.2,
+# Docker) quede en un origen/puerto distinto. En desarrollo se deja abierto;
+# restringir 'allow_origins' en producción a la URL real del dashboard.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(ips_router)
-app.include_router(scheduler_router)
+app.include_router(subnets_router)
+
+# Dashboard estático: sirve static/dashboard/index.html en /dashboard/
+app.mount(
+    "/dashboard",
+    StaticFiles(directory="static/dashboard", html=True),
+    name="dashboard",
+)
 
 
 @app.get("/api/v1/health", tags=["health"])
