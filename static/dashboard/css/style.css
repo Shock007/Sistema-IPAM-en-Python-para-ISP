@@ -1,0 +1,66 @@
+/* ---------------------------------------------------------------------
+   Colores de estado (compartidos entre la leyenda y las celdas del grid,
+   que se agregan en el Paso 3). Mantener estos 3 nombres de clase:
+   .ip-free / .ip-assigned / .ip-active
+--------------------------------------------------------------------- */
+.ip-free {
+    background-color: #198754; /* verde - Bootstrap "success" */
+}
+
+.ip-assigned {
+    background-color: #dc3545; /* rojo - Bootstrap "danger" */
+}
+
+.ip-active {
+    background-color: #ffc107; /* amarillo - Bootstrap "warning" */
+}
+
+/* Leyenda */
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.legend-swatch {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.25rem;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+/* Contenedor de cada bloque de subred dentro del grid (Paso 3) */
+.subnet-block {
+    margin-bottom: 1.5rem;
+}
+
+.subnet-block__title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+/* Grid de celdas IP: cuadrados pequeños que se acomodan responsivamente */
+.ip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(2.5rem, 1fr));
+    gap: 0.4rem;
+}
+
+.ip-cell {
+    aspect-ratio: 1 / 1;
+    border-radius: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: transform 0.1s ease-in-out;
+}
+
+.ip-cell:hover {
+    transform: scale(1.1);
+    outline: 2px solid #212529;
+}
