@@ -21,6 +21,12 @@
                 <i class="bi bi-diagram-3"></i> IPAM Dashboard
             </span>
             <div class="d-flex align-items-center gap-3 text-light">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="auto-refresh-toggle">
+                    <label class="form-check-label small" for="auto-refresh-toggle">
+                        Auto-actualizar (30s)
+                    </label>
+                </div>
                 <small id="last-updated" class="text-secondary">Última actualización: --</small>
                 <button id="refresh-btn" class="btn btn-outline-light btn-sm" type="button">
                     <i class="bi bi-arrow-clockwise"></i> Actualizar
@@ -36,22 +42,27 @@
             Verificando conexión con la API...
         </div>
 
-        <!-- Barra de filtros (placeholder; se activa en el Paso 5) -->
+        <!-- Barra de filtros -->
         <div class="card mb-3">
             <div class="card-body d-flex flex-wrap align-items-center gap-3">
                 <div>
                     <label for="filter-subnet" class="form-label small mb-1">Subred</label>
-                    <select id="filter-subnet" class="form-select form-select-sm" disabled>
-                        <option>Todas</option>
+                    <select id="filter-subnet" class="form-select form-select-sm">
+                        <option value="">Todas</option>
                     </select>
                 </div>
                 <div>
                     <label for="filter-status" class="form-label small mb-1">Estado</label>
-                    <select id="filter-status" class="form-select form-select-sm" disabled>
-                        <option>Todos</option>
+                    <select id="filter-status" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        <option value="FREE">Libre</option>
+                        <option value="ASSIGNED">Asignada</option>
+                        <option value="ACTIVE">Activa sin registrar</option>
                     </select>
                 </div>
-                <span class="text-muted small ms-auto">Filtros disponibles en el Paso 5</span>
+                <button id="clear-filters-btn" class="btn btn-link btn-sm ms-auto" type="button">
+                    Limpiar filtros
+                </button>
             </div>
         </div>
 

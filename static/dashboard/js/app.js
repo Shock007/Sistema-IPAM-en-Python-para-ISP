@@ -1,12 +1,10 @@
-// Paso 4: colores dinámicos (ya vienen de STATUS_CLASSES desde el Paso 3;
-// aquí se refuerzan con badges en el modal) + modal de detalle en vez de
-// alert(). El filtrado por subred/estado se activa en el Paso 5.
+// Paso 5: filtros por subred/estado (se aplican sobre los datos ya
+// cargados, sin volver a golpear la API) + auto-refresh cada 30s.
 
 const API_BASE = ""; // mismo origen (FastAPI sirve API y dashboard juntos)
 
-// Límite alto para traer todo en una sola llamada mientras el volumen de
-// datos es pequeño. Si el proyecto crece, migrar a paginación real.
 const FETCH_LIMIT = 500;
+const AUTO_REFRESH_INTERVAL_MS = 30_000;
 
 const STATUS_LABELS = {
     FREE: "Libre",
@@ -14,15 +12,12 @@ const STATUS_LABELS = {
     ACTIVE: "Activa sin registrar",
 };
 
-// Clases para las celdas del grid (definidas en css/style.css).
 const STATUS_CLASSES = {
     FREE: "ip-free",
     ASSIGNED: "ip-assigned",
     ACTIVE: "ip-active",
 };
 
-// Clases de Bootstrap para el badge del modal (mismos colores, distinto
-// mecanismo de estilo porque el badge usa el sistema de "bg-*" de Bootstrap).
 const STATUS_BADGE_CLASSES = {
     FREE: "bg-success",
     ASSIGNED: "bg-danger",
@@ -33,8 +28,12 @@ const statusEl = document.getElementById("status");
 const gridContainer = document.getElementById("ips-grid-container");
 const lastUpdatedEl = document.getElementById("last-updated");
 const refreshBtn = document.getElementById("refresh-btn");
+const filterSubnetEl = document.getElementById("filter-subnet");
+const filterStatusEl = document.getElementById("filter-status");
+const clearFiltersBtn = document.getElementById("clear-filters-btn");
+const autoRefreshToggle = document.getElementById("auto-refresh-toggle");
 
-// --- Modal de detalle -----------------------------------------------------
+// Modal de detalle (Paso 4)
 const ipDetailModalEl = document.getElementById("ipDetailModal");
 const ipDetailModal = new bootstrap.Modal(ipDetailModalEl);
 const modalIp = document.getElementById("modal-ip");
@@ -43,6 +42,12 @@ const modalSubnet = document.getElementById("modal-subnet");
 const modalClient = document.getElementById("modal-client");
 const modalDescription = document.getElementById("modal-description");
 
+// Caché en memoria de la última respuesta de la API; los filtros trabajan
+// sobre esta caché para no tener que volver a llamar al backend.
+let cache = { subnets: [], ips: [], clients: [] };
+let autoRefreshTimer = null;
+
+// --- Modal de detalle -----------------------------------------------------
 function openIpModal(ip, subnet, client) {
     modalIp.textContent = ip.ip_address;
 
@@ -64,8 +69,6 @@ function setStatus(message, variant) {
 }
 
 function ipSortKey(ip) {
-    // Ordena numéricamente por octetos en vez de alfabéticamente
-    // (evita que "10.0.0.2" quede antes de "10.0.0.10" mal ordenado).
     return ip.ip_address
         .split(".")
         .map((octet) => octet.padStart(3, "0"))
@@ -80,12 +83,59 @@ async function fetchJson(path) {
     return res.json();
 }
 
+// --- Filtros ----------------------------------------------------------------
+function populateSubnetFilterOptions(subnets) {
+    const previousValue = filterSubnetEl.value;
+
+    filterSubnetEl.innerHTML = '<option value="">Todas</option>';
+    subnets
+        .slice()
+        .sort((a, b) => a.cidr.localeCompare(b.cidr))
+        .forEach((subnet) => {
+            const opt = document.createElement("option");
+            opt.value = String(subnet.id);
+            opt.textContent = `${subnet.cidr} — ${subnet.name}`;
+            filterSubnetEl.appendChild(opt);
+        });
+
+    // Conserva la selección previa si la subred sigue existiendo tras el refresh.
+    if ([...filterSubnetEl.options].some((o) => o.value === previousValue)) {
+        filterSubnetEl.value = previousValue;
+    }
+}
+
+function getFilteredIps() {
+    const subnetFilter = filterSubnetEl.value; // "" = todas
+    const statusFilter = filterStatusEl.value; // "" = todos
+
+    return cache.ips.filter((ip) => {
+        const matchesSubnet = !subnetFilter || String(ip.subnet_id) === subnetFilter;
+        const matchesStatus = !statusFilter || ip.status === statusFilter;
+        return matchesSubnet && matchesStatus;
+    });
+}
+
+function applyFilters() {
+    const filteredIps = getFilteredIps();
+    renderGrid(cache.subnets, filteredIps, cache.clients);
+
+    const total = cache.ips.length;
+    const shown = filteredIps.length;
+    const filtroActivo = filterSubnetEl.value || filterStatusEl.value;
+    setStatus(
+        filtroActivo
+            ? `Mostrando ${shown} de ${total} IP(s) según el filtro aplicado.`
+            : `Conectado a la API. ${total} IP(s) en ${cache.subnets.length} subred(es).`,
+        "success"
+    );
+}
+
 // --- Construcción del grid ---------------------------------------------
 function buildCell(ip, subnet, clientsById) {
     const cell = document.createElement("div");
     const statusClass = STATUS_CLASSES[ip.status] || "bg-secondary";
     cell.className = `ip-cell ${statusClass}`;
-    cell.textContent = ip.ip_address.split(".").pop(); // último octeto, celda compacta
+    cell.textContent = ip.ip_address.split(".").pop();
     cell.title = `${ip.ip_address} — ${STATUS_LABELS[ip.status] || ip.status} (clic para más detalle)`;
 
     cell.addEventListener("click", () => {
@@ -127,7 +177,7 @@ function renderGrid(subnets, ips, clients) {
 
     if (ips.length === 0) {
         gridContainer.innerHTML =
-            '<p class="text-muted text-center py-4">No hay direcciones IP registradas.</p>';
+            '<p class="text-muted text-center py-4">No hay direcciones IP que coincidan con el filtro.</p>';
         return;
     }
 
@@ -142,7 +192,6 @@ function renderGrid(subnets, ips, clients) {
         ipsBySubnet.get(ip.subnet_id).push(ip);
     });
 
-    // Subredes con IPs, ordenadas por CIDR.
     const orderedSubnetIds = [...ipsBySubnet.keys()].sort((a, b) => {
         const cidrA = subnetsById.get(a)?.cidr || "";
         const cidrB = subnetsById.get(b)?.cidr || "";
@@ -171,9 +220,10 @@ async function loadDashboard() {
             fetchJson(`/api/v1/clients?limit=${FETCH_LIMIT}`),
         ]);
 
-        renderGrid(subnets, ips, clients);
+        cache = { subnets, ips, clients };
+        populateSubnetFilterOptions(subnets);
+        applyFilters(); // aplica el filtro actual (si había uno) sobre los datos nuevos
 
-        setStatus(`Conectado a la API. ${ips.length} IP(s) en ${subnets.length} subred(es).`, "success");
         lastUpdatedEl.textContent = `Última actualización: ${new Date().toLocaleTimeString()}`;
     } catch (err) {
         setStatus(`Error al cargar datos: ${err.message}`, "danger");
@@ -183,5 +233,34 @@ async function loadDashboard() {
     }
 }
 
+// --- Auto-refresh -----------------------------------------------------------
+function startAutoRefresh() {
+    stopAutoRefresh();
+    autoRefreshTimer = setInterval(loadDashboard, AUTO_REFRESH_INTERVAL_MS);
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+    }
+}
+
+// --- Listeners --------------------------------------------------------------
 refreshBtn.addEventListener("click", loadDashboard);
+filterSubnetEl.addEventListener("change", applyFilters);
+filterStatusEl.addEventListener("change", applyFilters);
+clearFiltersBtn.addEventListener("click", () => {
+    filterSubnetEl.value = "";
+    filterStatusEl.value = "";
+    applyFilters();
+});
+autoRefreshToggle.addEventListener("change", (e) => {
+    if (e.target.checked) {
+        startAutoRefresh();
+    } else {
+        stopAutoRefresh();
+    }
+});
+
 document.addEventListener("DOMContentLoaded", loadDashboard);
