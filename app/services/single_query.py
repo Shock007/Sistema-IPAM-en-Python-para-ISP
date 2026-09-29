@@ -1,14 +1,10 @@
 """
 Módulo de Consulta Única.
 
-Representa la pestaña de "consulta directa a una IP específica":
   - Por defecto SOLO usa PING (ICMP). No requiere autorización.
-  - Opcionalmente puede además usar Sockets TCP asíncronos, pero SOLO si el
-    usuario aporta el PIN de autorización del proveedor. Si el PIN es
-    inválido, no se dispara ningún socket TCP: se rechaza antes de escanear.
-
-No hace descubrimiento de rango (eso corresponde al escaneo por rango, que
-solo usará PING); esta es una verificación puntual sobre una única IP.
+  - Opcionalmente además Sockets TCP asíncronos, pero SOLO con el PIN del
+    proveedor. Si el PIN es inválido se rechaza ANTES de cualquier acción
+    de red (ni ping ni TCP).
 """
 from sqlalchemy.orm import Session
 
@@ -25,34 +21,19 @@ def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
                      provider_pin: str | None = None) -> dict:
     """Ejecuta la consulta única sobre una IP.
 
-    Args:
-        db: sesión de SQLAlchemy.
-        ip_address: IP a consultar.
-        use_tcp: si True, además del PING se intenta el escaneo TCP.
-        provider_pin: PIN de autorización, obligatorio si use_tcp=True.
-
-    Returns:
-        dict con el resultado de ping, (opcional) tcp, y la evaluación
-        registrada en ip_state_history si la IP existe en la base de datos.
-
     Raises:
-        UnauthorizedTCPScanError: si use_tcp=True y el PIN es inválido.
+        UnauthorizedTCPScanError: use_tcp=True y PIN inválido.
+        MissingProviderPinError: use_tcp=True y PROVIDER_PIN sin configurar.
     """
     from app.services.evaluation import record_result  # import local para evitar ciclos
 
+    # 1) Autorización primero: si falla, no se ejecuta ninguna acción de red.
+    if use_tcp:
+        authorize_tcp_scan(provider_pin)
+
     result: dict = {"ip_address": ip_address, "ping": None, "tcp": None}
 
-    if use_tcp:
-            # Si el PIN es inválido, esto lanza UnauthorizedTCPScanError y NO
-            # se ejecuta ningún socket TCP.
-            authorize_tcp_scan(provider_pin)
-    
-            tcp_results = scan_ports(ip_address)
-            result["tcp"] = tcp_results
-            method = CheckMethod.TCP
-            is_up = ping_ok or any(tcp_results.values())
-            details = f"ping={ping_ok}; tcp={tcp_results}"
-
+    # 2) Ping (siempre).
     ping_ok = ping_host(ip_address)
     result["ping"] = ping_ok
 
@@ -60,7 +41,15 @@ def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
     is_up = ping_ok
     details = f"ping={ping_ok}"
 
+    # 3) TCP (solo si ya se autorizó).
+    if use_tcp:
+        tcp_results = scan_ports(ip_address)
+        result["tcp"] = tcp_results
+        method = CheckMethod.TCP
+        is_up = ping_ok or any(tcp_results.values())
+        details = f"ping={ping_ok}; tcp={tcp_results}"
 
+    # 4) Evaluación / historial si la IP está registrada.
     ip_obj = ip_crud.get_ip_by_address(db, ip_address)
     if ip_obj:
         result["evaluation"] = record_result(
