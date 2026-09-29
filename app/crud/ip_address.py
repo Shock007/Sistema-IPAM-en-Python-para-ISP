@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy import func, select
 
 from app.Models.ip_address import IPAddress, IPStatus
 
@@ -32,7 +33,8 @@ def list_ips(db: Session, subnet_id: int | None = None, status: IPStatus | None 
         stmt = stmt.where(IPAddress.subnet_id == subnet_id)
     if status is not None:
         stmt = stmt.where(IPAddress.status == status)
-    return list(db.scalars(stmt.offset(skip).limit(limit)))
+    stmt = stmt.order_by(IPAddress.id).offset(skip).limit(limit)
+    return list(db.scalars(stmt))
 
 
 def assign_ip(db: Session, ip_id: int, client_id: int | None, description: str | None = None,
@@ -77,3 +79,20 @@ def delete_ip(db: Session, ip_id: int) -> bool:
     db.delete(obj)
     db.commit()
     return True
+
+def count_ips(db: Session, subnet_id: int | None = None,
+              status: IPStatus | None = None) -> int:
+    stmt = select(func.count()).select_from(IPAddress)
+    if subnet_id is not None:
+        stmt = stmt.where(IPAddress.subnet_id == subnet_id)
+    if status is not None:
+        stmt = stmt.where(IPAddress.status == status)
+    return db.scalar(stmt) or 0
+
+
+def count_by_subnet_and_status(db: Session) -> list[tuple[int, IPStatus, int]]:
+    rows = db.execute(
+        select(IPAddress.subnet_id, IPAddress.status, func.count())
+        .group_by(IPAddress.subnet_id, IPAddress.status)
+    )
+    return [(r[0], r[1], r[2]) for r in rows]

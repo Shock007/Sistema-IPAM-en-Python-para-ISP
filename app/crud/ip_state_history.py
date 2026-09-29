@@ -34,7 +34,7 @@ def list_history(db: Session, ip_id: int, limit: int = 50) -> list[IPStateHistor
     stmt = (
         select(IPStateHistory)
         .where(IPStateHistory.ip_id == ip_id)
-        .order_by(IPStateHistory.checked_at.desc())
+        .order_by(IPStateHistory.checked_at.desc(), IPStateHistory.id.desc())
         .limit(limit)
     )
     return list(db.scalars(stmt))

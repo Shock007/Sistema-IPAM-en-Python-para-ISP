@@ -5,13 +5,15 @@ Usa una base de datos SQLite en memoria, aislada por test, e inyecta esa
 sesión en la app mediante `dependency_overrides` (no toca la BD real
 configurada en DATABASE_URL).
 """
+import os
+os.environ["SCHEDULER_ENABLED"] = "false"  # el TestClient no debe arrancar el scheduler real
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_session_factory
 from app.database import Base
 from app.Models.client import Client
 from app.Models.ip_address import IPAddress, IPStatus
@@ -39,17 +41,20 @@ def db_session():
 
 @pytest.fixture()
 def client(db_session):
-    """TestClient de FastAPI con la dependencia get_db apuntando a db_session."""
+    from app.api.rate_limit import pin_limiter
     from app.main import app
+
+    pin_limiter.clear()
 
     def _override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
+    # Las tareas en segundo plano abren su propia sesión: apuntarla al motor de test.
+    app.dependency_overrides[get_session_factory] = lambda: TestingSessionLocal
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
-
 
 @pytest.fixture()
 def seed(db_session):

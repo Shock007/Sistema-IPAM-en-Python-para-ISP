@@ -42,6 +42,17 @@ def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
 
     result: dict = {"ip_address": ip_address, "ping": None, "tcp": None}
 
+    if use_tcp:
+            # Si el PIN es inválido, esto lanza UnauthorizedTCPScanError y NO
+            # se ejecuta ningún socket TCP.
+            authorize_tcp_scan(provider_pin)
+    
+            tcp_results = scan_ports(ip_address)
+            result["tcp"] = tcp_results
+            method = CheckMethod.TCP
+            is_up = ping_ok or any(tcp_results.values())
+            details = f"ping={ping_ok}; tcp={tcp_results}"
+
     ping_ok = ping_host(ip_address)
     result["ping"] = ping_ok
 
@@ -49,16 +60,6 @@ def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
     is_up = ping_ok
     details = f"ping={ping_ok}"
 
-    if use_tcp:
-        # Si el PIN es inválido, esto lanza UnauthorizedTCPScanError y NO
-        # se ejecuta ningún socket TCP.
-        authorize_tcp_scan(provider_pin)
-
-        tcp_results = scan_ports(ip_address)
-        result["tcp"] = tcp_results
-        method = CheckMethod.TCP
-        is_up = ping_ok or any(tcp_results.values())
-        details = f"ping={ping_ok}; tcp={tcp_results}"
 
     ip_obj = ip_crud.get_ip_by_address(db, ip_address)
     if ip_obj:

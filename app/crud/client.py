@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
+from app.Models.ip_address import IPStatus
 from app.Models.client import Client
 
 
@@ -49,6 +49,10 @@ def delete_client(db: Session, client_id: int) -> bool:
     obj = db.get(Client, client_id)
     if not obj:
         return False
+    # Una IP ASSIGNED sin cliente sería inconsistente: se liberan.
+    for ip in obj.ip_addresses:
+        ip.client_id = None
+        ip.status = IPStatus.FREE
     db.delete(obj)
     db.commit()
     return True

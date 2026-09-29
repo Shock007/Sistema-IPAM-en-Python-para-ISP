@@ -1,18 +1,14 @@
-"""
-Esquemas Pydantic (request/response) para la API REST de la Fase 3.
-"""
+"""Esquemas Pydantic (request/response) para la API REST."""
+import ipaddress
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, model_validator
+from pydantic import (
+    BaseModel, ConfigDict, Field, IPvAnyAddress, field_validator, model_validator,
+)
 
 from app.Models.ip_address import IPStatus
-
-from datetime import datetime
-
-from typing import Optional
-
-from pydantic import BaseModel, ConfigDict
+from app.Models.ip_state_history import CheckMethod
 
 # --- IPAddress ---------------------------------------------------------
 
@@ -114,6 +110,7 @@ class ClientRead(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    wisphub_client_id: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -157,3 +154,115 @@ class ScanAcceptedResponse(BaseModel):
     total_ips: int
     concurrency: int
     timeout: int
+
+# --- Subnet (escritura) ----------------------------------------------------
+
+class SubnetCreate(BaseModel):
+    cidr: str = Field(max_length=43)
+    name: str = Field(min_length=1, max_length=100)
+    description: Optional[str] = None
+    vlan_id: Optional[int] = Field(default=None, ge=1, le=4094)
+
+    @field_validator("cidr")
+    @classmethod
+    def _normalize_cidr(cls, v: str) -> str:
+        v = v.strip()
+        if "/" not in v:
+            raise ValueError("El CIDR debe incluir el prefijo, ej. 192.168.1.0/24.")
+        try:
+            return str(ipaddress.ip_network(v, strict=False))
+        except ValueError as exc:
+            raise ValueError(f"CIDR inválido: {exc}") from exc
+
+
+class SubnetUpdate(BaseModel):
+    """El CIDR es inmutable (cambiarlo dejaría IPs fuera de su red)."""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    description: Optional[str] = None
+    vlan_id: Optional[int] = Field(default=None, ge=1, le=4094)
+
+
+# --- Client (escritura) ----------------------------------------------------
+
+class _ClientBase(BaseModel):
+    document_id: Optional[str] = Field(default=None, max_length=30)
+    email: Optional[str] = Field(default=None, max_length=120)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    address: Optional[str] = Field(default=None, max_length=255)
+    wisphub_client_id: Optional[str] = Field(default=None, max_length=50)
+
+    @field_validator("document_id")
+    @classmethod
+    def _blank_to_none(cls, v: Optional[str]) -> Optional[str]:
+        # '' chocaría con la restricción UNIQUE de document_id.
+        return v.strip() or None if v is not None else None
+
+
+class ClientCreate(_ClientBase):
+    full_name: str = Field(min_length=1, max_length=150)
+
+
+class ClientUpdate(_ClientBase):
+    full_name: Optional[str] = Field(default=None, min_length=1, max_length=150)
+    is_active: Optional[bool] = None
+
+
+# --- IPs (creación, historial, stats, consulta única) ---------------------
+
+class IPCreateRequest(BaseModel):
+    ip_address: IPvAnyAddress
+    subnet_id: int
+    client_id: Optional[int] = None
+    description: Optional[str] = None
+
+
+class IPStateHistoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ip_id: int
+    previous_status: Optional[str] = None
+    new_status: str
+    method: CheckMethod
+    details: Optional[str] = None
+    checked_at: datetime
+
+
+class SubnetStats(BaseModel):
+    subnet_id: int
+    cidr: str
+    name: str
+    total: int
+    free: int
+    assigned: int
+    active: int
+
+
+class IPStats(BaseModel):
+    total: int
+    free: int
+    assigned: int
+    active: int
+    by_subnet: list[SubnetStats]
+
+
+class IPQueryRequest(BaseModel):
+    ip_address: IPvAnyAddress
+    use_tcp: bool = False
+    pin: Optional[str] = Field(default=None, repr=False)
+
+
+class IPQueryResponse(BaseModel):
+    ip_address: str
+    ping: bool
+    tcp: Optional[dict[int, bool]] = None
+    evaluation: Optional[dict] = None
+    note: Optional[str] = None
+
+
+class SchedulerStatus(BaseModel):
+    enabled: bool
+    running: bool
+    job_registered: bool
+    interval_hours: int
+    next_run_time: Optional[str] = None

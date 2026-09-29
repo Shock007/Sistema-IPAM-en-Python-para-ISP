@@ -7,6 +7,9 @@ restringe mediante un PIN leído de variable de entorno (PROVIDER_PIN).
 Este mecanismo debe reemplazarse el día que el proveedor defina el flujo
 real (ej. token firmado, API key, OAuth, lista blanca de IPs autorizadas, etc.).
 """
+
+import hmac
+
 from app.config import PROVIDER_PIN
 
 
@@ -33,7 +36,7 @@ def authorize_tcp_scan(pin: str | None) -> bool:
             "PROVIDER_PIN no está configurado en el entorno (.env). "
             "Defina la variable antes de habilitar consultas TCP."
         )
-    if pin != PROVIDER_PIN:
+    if not pin or not hmac.compare_digest(pin.encode(), PROVIDER_PIN.encode()):
         raise UnauthorizedTCPScanError(
             "PIN de autorización inválido. Las consultas vía Sockets TCP "
             "requieren autorización explícita del proveedor."

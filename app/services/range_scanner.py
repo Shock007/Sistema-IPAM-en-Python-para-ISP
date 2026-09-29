@@ -12,6 +12,7 @@ Cubre el segundo criterio de la Fase 2:
 """
 import asyncio
 import ipaddress
+import logging
 
 from sqlalchemy.orm import Session
 
@@ -24,7 +25,7 @@ DEFAULT_TIMEOUT = 2
 # Límite de seguridad: evita que un usuario dispare por error un escaneo
 # sobre un rango gigante (ej. una /8 completa) que tardaría horas.
 MAX_HOSTS_PER_SCAN = 1024
-
+logger = logging.getLogger("ipam.range_scanner")
 
 # --- Construcción del listado de IPs -----------------------------------
 
@@ -48,20 +49,15 @@ def ips_from_range(start_ip: str, end_ip: str) -> list[str]:
 
 
 def ips_from_network(address: str, netmask: str) -> list[str]:
-    """Deduce el rango de hosts a partir de una IP + máscara de red.
-
-    `netmask` acepta tanto la notación decimal (255.255.255.0) como el
-    prefijo CIDR ("24").
-    """
     network = ipaddress.ip_network(f"{address}/{netmask}", strict=False)
-    hosts = list(network.hosts())
 
-    if len(hosts) > MAX_HOSTS_PER_SCAN:
+    # Validar ANTES de materializar la lista (una /8 o una IPv6 /64 agotarían memoria).
+    if network.num_addresses > MAX_HOSTS_PER_SCAN + 2:
         raise ValueError(
-            f"La red {network} tiene {len(hosts)} hosts; supera el máximo "
-            f"permitido por escaneo ({MAX_HOSTS_PER_SCAN})."
+            f"La red {network} tiene {network.num_addresses} direcciones; supera el "
+            f"máximo permitido por escaneo ({MAX_HOSTS_PER_SCAN})."
         )
-    return [str(ip) for ip in hosts]
+    return [str(ip) for ip in network.hosts()]
 
 
 def build_ip_list(start_ip: str | None = None, end_ip: str | None = None,
@@ -144,3 +140,16 @@ def run_range_scan(db: Session, ips: list[str], concurrency: int = DEFAULT_CONCU
         summary["details"].append(entry)
 
     return summary
+
+def run_range_scan_background(session_factory, ips: list[str],
+                               concurrency: int = DEFAULT_CONCURRENCY,
+                               timeout: int = DEFAULT_TIMEOUT) -> None:
+    """Versión para BackgroundTasks: abre y cierra su PROPIA sesión, sin
+    depender de la sesión de la request (que puede estar ya cerrada)."""
+    db = session_factory()
+    try:
+        run_range_scan(db, ips, concurrency=concurrency, timeout=timeout)
+    except Exception:  # noqa: BLE001
+        logger.exception("Falló el escaneo en segundo plano")
+    finally:
+        db.close()
