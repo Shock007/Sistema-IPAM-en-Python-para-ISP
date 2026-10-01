@@ -1,8 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { CalendarClock, Timer } from 'lucide-react'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CalendarClock, Play, Timer } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/api/endpoints'
 import { errorMessage } from '@/lib/http'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { SchedulerStatus } from '@/types/api'
@@ -35,6 +38,20 @@ export function SchedulerPanel() {
     queryKey: ['scheduler', 'status'],
     queryFn: () => api.scheduler.status(),
     refetchInterval: 30_000, // mantiene "próxima ejecución" al día
+  })
+
+    const qc = useQueryClient()
+    const [cooling, setCooling] = useState(false) // evita auditorías solapadas por doble clic
+
+    const runNow = useMutation({
+      mutationFn: () => api.scheduler.runNow(),
+      onSuccess: (res) => {
+      toast.info(res.message + ' Los estados se actualizarán al terminar; revisa la tabla de IPs.')
+      qc.invalidateQueries({ queryKey: ['scheduler'] })
+      setCooling(true)
+      setTimeout(() => setCooling(false), 10_000)
+    },
+    onError: (err) => toast.error(errorMessage(err)),
   })
 
   return (
@@ -80,6 +97,12 @@ export function SchedulerPanel() {
             )}
           </>
         )}
+                <div className="pt-2">
+          <Button size="sm" variant="outline" disabled={runNow.isPending || cooling}
+            onClick={() => runNow.mutate()}>
+            <Play /> {runNow.isPending ? 'Disparando...' : cooling ? 'Auditoría en curso...' : 'Ejecutar auditoría ahora'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

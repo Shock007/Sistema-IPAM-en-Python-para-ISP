@@ -13,7 +13,11 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import type { IPStatus } from '@/types/api'
+import type { IPAddressRead, IPStatus } from '@/types/api'
+import { AssignDialog } from '@/components/AssignDialog'
+import { Plus } from 'lucide-react'
+import { IPCreateDialog } from '@/components/IPCreateDialog'
+
 
 const PAGE_SIZE = 20
 
@@ -28,6 +32,8 @@ export function IPsPage() {
   const [status, setStatus] = useState('all')
   const [subnet, setSubnet] = useState('all')
   const [page, setPage] = useState(0)
+  const [target, setTarget] = useState<IPAddressRead | null>(null)
+  const [creating, setCreating] = useState(false)
 
   const subnets = useQuery({
     queryKey: ['subnets', 'all'],
@@ -66,7 +72,11 @@ export function IPsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Direcciones IP</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Direcciones IP</h1>
+        <Button onClick={() => setCreating(true)}><Plus /> Nueva IP</Button>
+      </div>
+      
 
       <div className="flex flex-wrap items-center gap-3">
         <Select
@@ -114,14 +124,15 @@ export function IPsPage() {
               <TableHead>Cliente</TableHead>
               <TableHead>Descripción</TableHead>
               <TableHead>Actualizada</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {ips.isPending && (
-              <TableRow><TableCell colSpan={6} className="text-muted-foreground">Cargando...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-muted-foreground">Cargando...</TableCell></TableRow>
             )}
             {ips.isSuccess && ips.data.data.length === 0 && (
-              <TableRow><TableCell colSpan={6} className="text-muted-foreground">No hay IPs con esos filtros.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-muted-foreground">No hay IPs con esos filtros.</TableCell></TableRow>
             )}
             {ips.data?.data.map((ip) => (
               <TableRow key={ip.id}>
@@ -136,6 +147,9 @@ export function IPsPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {new Date(ip.updated_at).toLocaleString('es-CO')}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button variant="outline" size="xs" onClick={() => setTarget(ip)}>Asignar</Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -159,6 +173,14 @@ export function IPsPage() {
           </Button>
         </div>
       </div>
+      {target && (<AssignDialog
+      key={target.id}
+      ip={target}
+      clients={clients.data ?? []}
+      onClose={() => setTarget(null)}
+      />
+      )}
+      {creating && <IPCreateDialog onClose={() => setCreating(false)} />}
     </div>
   )
 }

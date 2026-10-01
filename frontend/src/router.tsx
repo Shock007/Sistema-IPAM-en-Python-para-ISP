@@ -3,6 +3,9 @@ import { Layout } from '@/components/Layout'
 import { Dashboard } from '@/pages/Dashboard'
 import { Placeholder } from '@/pages/Placeholder'
 import { IPsPage } from '@/pages/IPs'
+import { ScanPage } from '@/pages/Scan'
+import { SubnetsPage } from '@/pages/Subnets'
+import { ClientsPage } from '@/pages/Clients'
 
 export const router = createBrowserRouter(
   [
@@ -11,9 +14,9 @@ export const router = createBrowserRouter(
       children: [
         { index: true, element: <Dashboard /> },
         { path: 'ips', element: <IPsPage /> },
-        { path: 'subnets', element: <Placeholder title="Subredes" phase="la Fase 3" /> },
-        { path: 'clients', element: <Placeholder title="Clientes" phase="la Fase 3" /> },
-        { path: 'scan', element: <Placeholder title="Escaneo y consulta" phase="la Fase 3" /> },
+        { path: 'subnets', element: <SubnetsPage /> },
+        { path: 'clients', element: <ClientsPage /> },
+        { path: 'scan', element: <ScanPage /> },
         { path: '*', element: <Placeholder title="No encontrado" phase="ninguna fase" /> },
       ],
     },
