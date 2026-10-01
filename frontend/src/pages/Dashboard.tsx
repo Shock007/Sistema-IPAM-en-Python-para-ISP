@@ -5,6 +5,7 @@ import { DonutChart } from '@/components/DonutChart'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { STATUS_LABELS } from '@/lib/status'
 import type { IPStatus } from '@/types/api'
+import { SchedulerPanel } from '@/components/SchedulerPanel'
 
 const METRICS: { key: 'total' | 'free' | 'assigned' | 'active'; label: string; dot?: string; hint?: string }[] = [
   { key: 'total', label: 'Total de IPs' },
@@ -25,6 +26,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <SchedulerPanel />
 
       {stats.isPending && <p className="text-sm text-muted-foreground">Cargando métricas...</p>}
       {stats.isError && <p className="text-sm text-destructive">{errorMessage(stats.error)}</p>}
