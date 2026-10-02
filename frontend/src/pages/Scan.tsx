@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import type { ScanAcceptedResponse, ScanRangeRequest, ScanSummary } from '@/types/api'
 import { QueryCard } from '@/components/QueryCard'
+import { estimateDurationMs, startIpPolling } from '@/lib/scanPolling'
 
 // --- Validación -------------------------------------------------------------
 const isIp = (s: string) => z.union([z.ipv4(), z.ipv6()]).safeParse(s).success
@@ -90,7 +91,11 @@ export function ScanPage() {
         toast.success(`Escaneo terminado: ${res.up} de ${res.total} IPs responden.`)
         qc.invalidateQueries({ queryKey: ['ips'] }) // el escaneo pudo cambiar estados
       } else {
-        toast.info(res.message)
+        startIpPolling(
+          qc,
+          estimateDurationMs(res.total_ips, res.concurrency, res.timeout),
+          res.message,
+        )
       }
     },
     onError: (err) => toast.error(errorMessage(err)),

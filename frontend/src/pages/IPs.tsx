@@ -1,10 +1,15 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { api } from '@/api/endpoints'
 import { errorMessage } from '@/lib/http'
 import { STATUS_LABELS } from '@/lib/status'
+import { cn } from '@/lib/utils'
 import { StatusBadge } from '@/components/StatusBadge'
+import { AssignDialog } from '@/components/AssignDialog'
+import { IPCreateDialog } from '@/components/IPCreateDialog'
+import { IPHistoryDialog } from '@/components/IPHistoryDialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -14,10 +19,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import type { IPAddressRead, IPStatus } from '@/types/api'
-import { AssignDialog } from '@/components/AssignDialog'
-import { Plus } from 'lucide-react'
-import { IPCreateDialog } from '@/components/IPCreateDialog'
-
 
 const PAGE_SIZE = 20
 
@@ -29,10 +30,16 @@ const STATUS_ITEMS: Record<string, string> = {
 }
 
 export function IPsPage() {
-  const [status, setStatus] = useState('all')
+  // El filtro de estado vive en la URL (?status=ACTIVE) para poder enlazarlo desde el header.
+  const [sp, setSp] = useSearchParams()
+  const rawStatus = sp.get('status')
+  const status = rawStatus && rawStatus in STATUS_ITEMS ? rawStatus : 'all'
+  const setStatus = (v: string) => setSp(v === 'all' ? {} : { status: v })
+
   const [subnet, setSubnet] = useState('all')
   const [page, setPage] = useState(0)
   const [target, setTarget] = useState<IPAddressRead | null>(null)
+  const [historyFor, setHistoryFor] = useState<IPAddressRead | null>(null)
   const [creating, setCreating] = useState(false)
 
   const subnets = useQuery({
@@ -76,7 +83,6 @@ export function IPsPage() {
         <h1 className="text-2xl font-semibold">Direcciones IP</h1>
         <Button onClick={() => setCreating(true)}><Plus /> Nueva IP</Button>
       </div>
-      
 
       <div className="flex flex-wrap items-center gap-3">
         <Select
@@ -134,25 +140,42 @@ export function IPsPage() {
             {ips.isSuccess && ips.data.data.length === 0 && (
               <TableRow><TableCell colSpan={7} className="text-muted-foreground">No hay IPs con esos filtros.</TableCell></TableRow>
             )}
-            {ips.data?.data.map((ip) => (
-              <TableRow key={ip.id}>
-                <TableCell className="font-mono">{ip.ip_address}</TableCell>
-                <TableCell><StatusBadge status={ip.status} /></TableCell>
-                <TableCell>{subnetById.get(ip.subnet_id) ?? `#${ip.subnet_id}`}</TableCell>
-                <TableCell>
-                  {ip.client_id ? (clientById.get(ip.client_id) ?? `#${ip.client_id}`) : '—'}
-                </TableCell>
-                <TableCell className="max-w-64 truncate" title={ip.description ?? ''}>
-                  {ip.description ?? '—'}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {new Date(ip.updated_at).toLocaleString('es-CO')}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="outline" size="xs" onClick={() => setTarget(ip)}>Asignar</Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {ips.data?.data.map((ip) => {
+              const alert = ip.status === 'ACTIVE' && ip.client_id === null
+              return (
+                <TableRow
+                  key={ip.id}
+                  className={cn(
+                    alert &&
+                      'bg-status-active/10 shadow-[inset_3px_0_0_var(--status-active)] hover:bg-status-active/20',
+                  )}
+                >
+                  <TableCell className="font-mono">
+                    <span className="flex items-center gap-1.5">
+                      {alert && (
+                        <AlertTriangle className="size-3.5 text-status-active" aria-label="Sin registrar" />
+                      )}
+                      {ip.ip_address}
+                    </span>
+                  </TableCell>
+                  <TableCell><StatusBadge status={ip.status} /></TableCell>
+                  <TableCell>{subnetById.get(ip.subnet_id) ?? `#${ip.subnet_id}`}</TableCell>
+                  <TableCell>
+                    {ip.client_id ? (clientById.get(ip.client_id) ?? `#${ip.client_id}`) : '—'}
+                  </TableCell>
+                  <TableCell className="max-w-64 truncate" title={ip.description ?? ''}>
+                    {ip.description ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(ip.updated_at).toLocaleString('es-CO')}
+                  </TableCell>
+                  <TableCell className="space-x-2 text-right">
+                    <Button variant="outline" size="xs" onClick={() => setHistoryFor(ip)}>Historial</Button>
+                    <Button variant="outline" size="xs" onClick={() => setTarget(ip)}>Asignar</Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
         </Table>
       </Card>
@@ -173,12 +196,23 @@ export function IPsPage() {
           </Button>
         </div>
       </div>
-      {target && (<AssignDialog
-      key={target.id}
-      ip={target}
-      clients={clients.data ?? []}
-      onClose={() => setTarget(null)}
-      />
+
+      {target && (
+        <AssignDialog
+          key={target.id}
+          ip={target}
+          clients={clients.data ?? []}
+          onClose={() => setTarget(null)}
+        />
+      )}
+      {historyFor && (
+        <IPHistoryDialog
+          key={historyFor.id}
+          ip={historyFor}
+          clientName={historyFor.client_id ? clientById.get(historyFor.client_id) : undefined}
+          subnetCidr={subnetById.get(historyFor.subnet_id)}
+          onClose={() => setHistoryFor(null)}
+        />
       )}
       {creating && <IPCreateDialog onClose={() => setCreating(false)} />}
     </div>

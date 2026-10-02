@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { SchedulerStatus } from '@/types/api'
+import { startIpPolling } from '@/lib/scanPolling'
 
 interface UiState { label: string; className: string; hint?: string }
 
@@ -46,7 +47,7 @@ export function SchedulerPanel() {
     const runNow = useMutation({
       mutationFn: () => api.scheduler.runNow(),
       onSuccess: (res) => {
-      toast.info(res.message + ' Los estados se actualizarán al terminar; revisa la tabla de IPs.')
+      startIpPolling(qc, 60_000, res.message) // auditoría completa: ventana fija de 60 s
       qc.invalidateQueries({ queryKey: ['scheduler'] })
       setCooling(true)
       setTimeout(() => setCooling(false), 10_000)
