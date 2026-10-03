@@ -1,75 +1,108 @@
-# IP Address Management (IPAM) & Automated Network Scanner
+# Sistema de Gestión, Monitoreo y Auditoría de Direcciones IP
 
-Sistema integral de gestión de direcciones IP (IPAM), monitoreo activo y auditoría automatizada para entornos de proveedores de servicios de Internet (ISP) y redes corporativas. El sistema combina un motor ligero de verificación de red en **Python (FastAPI)**, una infraestructura estructural en **Laravel**, un panel de administración interactivo en **React (Vite + TypeScript + Tailwind CSS)** y almacenamiento persistente mediante **PostgreSQL/MySQL**.
-
----
-
-## 📐 Arquitectura General del Sistema
-
-El proyecto opera bajo un modelo híbrido optimizado para alta frecuencia de escaneo y gestión de clientes:
-
-- **Backend API & Scanner (FastAPI):** Motor asíncrono para escaneo masivo (Ping ICMP + Probing de puertos TCP vía Sockets), comunicación directa con la API de **WispHub**, programación de auditorías periódicas (**APScheduler**) y persistencia de historial de estados.
-- **Backend Estructural (Laravel):** Base de soporte administrativo e integración con módulos de gestión.
-- **Frontend SPA (React + Vite):** Dashboard administrativo interactivo con estadísticas en tiempo real, mapas visuales de subredes/IPs, tablas paginadas, formularios validados e historial de cambios.
-- **Base de Datos Relacional:** PostgreSQL o MySQL administrado mediante **SQLAlchemy** (u ORM equivalente) y migraciones de esquema.
-- **Contenedorización:** Despliegue unificado con **Docker & Docker Compose**.
+Sistema web integral de auditoría, monitoreo y administración de direcciones IP para Proveedores de Servicios de Internet (ISP). Integra un motor ligero de verificación TCP/ICMP asíncrono, vinculación con **WispHub**, backend híbrido de alto rendimiento y una interfaz moderna en React.
 
 ---
 
-## 🗄️ Modelo de Datos (Data Model)
+## 📋 Tabla de Contenido
 
-El modelo de datos refleja la jerarquía de red, la relación con los clientes del ISP y la trazabilidad histórica de cada IP:
+- [Visión General](#visión-general)
+- [Arquitectura del Sistema](#arquitectura-del-sistema)
+- [Modelo de Datos](#modelo-de-datos)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Stack Tecnológico](#stack-tecnológico)
+- [Fases del Proyecto y Avances](#fases-del-proyecto-y-avances)
+- [Guía de Inicio y Ejecución de Demos](#guía-de-inicio-y-ejecución-de-demos)
+  - [Opción 1: Despliegue con Docker (Recomendado)](#opción-1-despliegue-con-docker-recomendado)
+  - [Opción 2: Desarrollo Local (Backend y Frontend)](#opción-2-desarrollo-local-backend-y-frontend)
+- [Endpoints API Principales](#endpoints-api-principales)
+- [Contribución y Licencia](#contribución-y-licencia)
+
+---
+
+## 🔀 Visión General
+
+El sistema permite automatizar la detección de inconsistencias entre el inventario de IPs y el tráfico real en la red. Clasifica el estado de cada dirección IP en:
+- **`FREE` (Verde):** IP sin cliente asignado y sin respuesta de red.
+- **`ASSIGNED` (Rojo):** IP registrada y asignada oficialmente a un cliente.
+- **`ACTIVE` (Amarillo):** IP respondiendo a pings/puertos o detectada en WispHub pero **no registrada/asignada** formalmente en el sistema (Alerta de conflicto / IP intrusa).
+
+---
+
+## 📐 Arquitectura del Sistema
+
+El sistema utiliza una arquitectura híbrida optimizada para velocidad y escalabilidad:
 
 ```
-+------------------+         +--------------------+         +-------------------+
-|      Subnet      | 1     N |     IPAddress      | N     1 |      Client       |
-+------------------+---------+--------------------+---------+-------------------+
-| id (PK)          |         | id (PK)            |         | id (PK)           |
-| cidr             |         | ip_address (UQ)    |         | name              |
-| vlan_id          |         | subnet_id (FK)     |         | document_number   |
-| name             |         | client_id (FK,Opt) |         | wisphub_id (UQ)   |
-| description      |         | status             |         | phone             |
-| created_at       |         | description        |         | email             |
-+------------------+         | updated_at         |         +-------------------+
-                             +--------------------+
-                                       | 1
-                                       | N
-                             +--------------------+
-                             |  IPStateHistory    |
-                             +--------------------+
-                             | id (PK)            |
-                             | ip_id (FK)         |
-                             | previous_status    |
-                             | new_status         |
-                             | scan_method        |
-                             | details (JSON)     |
-                             | checked_at         |
-                             +--------------------+
+                  ┌────────────────────────────────────────┐
+                  │          Cliente Web / Dashboard       │
+                  │   (React + Vite + Tailwind + TS)       │
+                  └───────────────────┬────────────────────┘
+                                      │
+                                      │ REST API / JSON
+                                      ▼
+                  ┌────────────────────────────────────────┐
+                  │           FastAPI Backend              │
+                  │  (Gestión de IPs, Scanner & Async API) │
+                  └───────┬────────────────┬───────────────┘
+                          │                │
+            ┌─────────────┴──┐          ┌──┴────────────────────────┐
+            ▼                ▼          ▼                           ▼
+    ┌──────────────┐  ┌─────────────┐ ┌───────────────────┐  ┌────────────┐
+    │ Motor Ping   │  │ Sockets TCP │ │ Adapter WispHub   │  │ APScheduler│
+    │ (ICMP Ping)  │  │ (Asyncio)   │ │ (API Externa ISP) │  │ (Auditoría)│
+    └──────────────┘  └─────────────┘ └───────────────────┘  └────────────┘
+            │                │                  │                   │
+            └────────────────┼──────────────────┴───────────────────┘
+                             ▼
+              ┌──────────────────────────────┐
+              │ Base de Datos ORM            │
+              │ (PostgreSQL / MySQL)         │
+              └──────────────────────────────┘
 ```
-
-### Estados de Dirección IP (`status`)
-1. **`FREE` (Libre):** IP no asignada a ningún cliente y sin respuesta en escaneos recientes.
-2. **`ASSIGNED` (Asignada):** IP vinculada formalmente a un cliente registrado en la base de datos o en WispHub.
-3. **`ACTIVE` (Activa no registrada):** IP detectada en uso continuo mediante escaneo TCP/Ping, pero que no cuenta con un cliente asignado formalmente (alerta de uso irregular).
 
 ---
 
-## 🛠️ Stack Tecnológico
+## 💾 Modelo de Datos
 
-### Backend
-- **Lenguaje:** Python 3.11+
-- **Framework REST:** FastAPI
-- **ORM & BD:** SQLAlchemy (o Peewee), PostgreSQL / MySQL
-- **Asincronía & Red:** `asyncio.open_connection` (Sockets TCP), `subprocess`/`aioping` (ICMP Ping)
-- **Programador:** APScheduler (Auditorías automáticas periódicas)
-- **Integraciones:** WispHub API Adapter
+El esquema relacional refleja la estructura del inventario de red, clientes e historial de auditoría:
 
-### Frontend
-- **Framework:** React 18+ (con Vite y TypeScript)
-- **Estilos & UI:** Tailwind CSS, shadcn/ui, Lucide Icons
-- **Gestión de Estado y Data Fetching:** TanStack Query (React Query v5)
-- **Formularios y Validación:** React Hook Form + Zod
-- **Enrutamiento:** React Router DOM
+```
+ ┌──────────────────────┐         ┌──────────────────────┐
+ │       Subnet         │         │        Client        │
+ ├──────────────────────┤         ├──────────────────────┤
+ │ id (PK)              │         │ id (PK)              │
+ │ cidr                 │         │ name                 │
+ │ vlan_id              │         │ document_id          │
+ │ name                 │         │ wisphub_id           │
+ │ description          │         │ phone                │
+ └──────────┬───────────┘         │ email                │
+            │ 1                   └──────────┬───────────┘
+            │                                │ 1
+            │ N                              │ N
+ ┌──────────┴────────────────────────────────┴───────────┐
+ │                      IPAddress                        │
+ ├───────────────────────────────────────────────────────┤
+ │ ip (PK)                                               │
+ │ subnet_id (FK -> Subnet.id)                           │
+ │ client_id (FK -> Client.id, Nullable)                 │
+ │ status [FREE | ASSIGNED | ACTIVE]                     │
+ │ description                                           │
+ └──────────────────────────┬────────────────────────────┘
+                            │ 1
+                            │ N
+ ┌──────────────────────────┴────────────────────────────┐
+ │                   IPStateHistory                      │
+ ├───────────────────────────────────────────────────────┤
+ │ id (PK)                                               │
+ │ ip (FK -> IPAddress.ip)                               │
+ │ checked_at (Timestamp)                                │
+ │ ping_responsive (Boolean)                             │
+ │ open_ports (Array/JSON)                               │
+ │ wisphub_active (Boolean)                              │
+ │ calculated_status                                     │
+ └───────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -80,186 +113,207 @@ El modelo de datos refleja la jerarquía de red, la relación con los clientes d
 ├── backend/
 │   ├── app/
 │   │   ├── api/
-│   │   │   └── v1/            # Endpoints REST (subnets, clients, ips, scan, scheduler)
-│   │   ├── core/              # Configuraciones globales y variables de entorno
-│   │   ├── db/                # Conexión ORM, base de datos y migraciones
-│   │   ├── models/            # Modelos SQLAlchemy (Subnet, Client, IPAddress, IPStateHistory)
-│   │   ├── schemas/           # Esquemas Pydantic para validación de entrada/salida
-│   │   ├── services/          # Motor de red (Ping, TCP Sockets, WispHub Adapter, Evaluator)
-│   │   └── scheduler/         # Tareas programadas con APScheduler
+│   │   │   └── v1/
+│   │   │       ├── subnets.py       # Endpoints CRUD de Subredes
+│   │   │       ├── clients.py       # Endpoints CRUD de Clientes
+│   │   │       ├── ips.py           # Endpoints de IPs y Escaneos
+│   │   │       └── scheduler.py     # Disparador y estado de auditoría
+│   │   ├── core/
+│   │   │   ├── config.py            # Variables de entorno y ajustes
+│   │   │   └── database.py          # Conexión ORM SQLAlchemy/Peewee
+│   │   ├── models/                  # Definición de tablas y relaciones
+│   │   │   ├── subnet.py
+│   │   │   ├── client.py
+│   │   │   ├── ip_address.py
+│   │   │   └── ip_history.py
+│   │   ├── scanner/                 # Motor de verificación liviano
+│   │   │   ├── ping_runner.py       # Ping ICMP rápido
+│   │   │   ├── socket_checker.py    # Sockets TCP asyncio
+│   │   │   └── wisphub_adapter.py   # Consulta API WispHub
+│   │   ├── static/
+│   │   │   └── app/                 # Build de producción del Frontend SPA
+│   │   └── main.py                  # Entrypoint FastAPI
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # Modales, tablas, KPIs, badges de estado y visores
-│   │   ├── hooks/             # Custom hooks y queries con TanStack Query
-│   │   ├── layouts/           # Layout principal y navegación
-│   │   ├── pages/             # Dashboard, Gestión de IPs, Subredes, Clientes
-│   │   ├── services/          # Cliente HTTP (Axios/Fetch API) hacia /api/v1
-│   │   ├── types/             # Definiciones de TypeScript para schemas
-│   │   └── utils/             # Funciones auxiliares y formateadores
+│   │   ├── components/              # Componentes UI (shadcn/ui, Modales, Grid)
+│   │   ├── hooks/                   # Custom Hooks & TanStack Queries
+│   │   ├── pages/                   # Vista Principal, Subredes, Clientes, Config
+│   │   ├── services/                # Cliente API HTTP
+│   │   ├── types/                   # Interfaces TypeScript espejo de Schemas
+│   │   ├── App.tsx                  # Enrutador e integración principal
+│   │   └── main.tsx
 │   ├── package.json
-│   ├── vite.config.ts         # Configuración de Vite (Proxy hacia Backend e subpath /app/)
-│   └── Dockerfile
-├── laravel-base/              # Estructura base de Laravel (Backend Híbrido)
-├── docker-compose.yml         # Orquestador multi-contenedor
+│   ├── vite.config.ts               # Proxy a :8000 y base /app/
+│   └── tailwind.config.js
+├── docker-compose.yml               # Orquestador multi-contenedor
 └── README.md
 ```
 
 ---
 
-## 🚀 Estado de Avance del Proyecto
+## 🛠️ Stack Tecnológico
 
-### ⚙️ Backend (FastAPI + Python)
+### Backend
+- **Framework Principal:** Python 3.11+ con FastAPI.
+- **ORM & BD:** SQLAlchemy / Peewee con soporte PostgreSQL y MySQL.
+- **Verificación de Red:** Sockets TCP asíncronos (`asyncio.open_connection`), ICMP Ping y Adapter API WispHub.
+- **Automatización:** APScheduler para tareas periódicas (ej. escaneos cada 6/12 h).
+- **Base Estructural Alterna:** Laravel (Mantenido como estructura base/legacy).
 
-#### Fase 1: Estructura de Proyecto y Base de Datos
-- [x] Configuración inicial con SQLAlchemy compatible con PostgreSQL y MySQL.
-- [x] Creación de modelos de datos iniciales (`Subnet`, `Client`, `IPAddress`, `IPStateHistory`).
-- [x] Desarrollo de módulos CRUD para administración manual de subredes, clientes e IPs.
-
-#### Fase 2: Motor de Verificación Ligero (Sockets TCP + Ping + WispHub)
-- [x] **Módulo WispHub:** Adaptador API para consultar servicios activos por IP y mapear clientes.
-- [x] **Módulo NetworkScanner (Sin Nmap):**
-  - Verificación ICMP Ping de alta velocidad.
-  - Sockets TCP asíncronos (`asyncio.open_connection`) direccionados a puertos estratégicos de ISP (`80`, `443`, `8291`, `22`, `53`, `8080`, `23`).
-- [x] **Módulo de Evaluación:** Agregación de resultados e inserción automática de cambios en `ip_state_history`.
-
-#### Fase 3: REST API y Escaneos Programados
-- [x] Endpoints REST FastAPI:
-  - `GET /api/v1/subnets`: Lista de subredes.
-  - `GET /api/v1/clients`: Lista de clientes.
-  - `GET /api/v1/ips`: Consulta paginada/filtrada por estado (`FREE`, `ASSIGNED`, `ACTIVE`) y subred.
-  - `PUT /api/v1/ips/{ip}/assign`: Asignación manual de cliente, descripción y estado.
-  - `POST /api/v1/ips/scan`: Disparo de escaneo síncrono o asíncrono (retorno `202 Accepted`).
-  - `POST /api/v1/scheduler/run-now`: Ejecución manual e inmediata de auditoría completa.
-- [x] Integración de **APScheduler** para ejecución programada periódica (ej. cada 6 o 12 horas).
-
-#### Fase 4: Contenedorización y Producción
-- [x] Empaquetado completo mediante `Dockerfile` y `docker-compose.yml` para sincronización con PostgreSQL/MySQL.
+### Frontend
+- **Framework & Build tool:** React 18 + Vite con TypeScript.
+- **UI & Estilos:** Tailwind CSS + shadcn/ui + Lucide Icons.
+- **Estado y Data Fetching:** TanStack Query (React Query v5).
+- **Formularios y Validación:** React Hook Form + Zod.
 
 ---
 
-### 🎨 Frontend (React + Vite + TypeScript)
+## 🚀 Fases del Proyecto y Avances
 
-#### Fase 1: Base Estructural y Configuración
-- [x] Inicialización del entorno Vite con React, TypeScript, Tailwind CSS y componentes `shadcn/ui`.
-- [x] Configuración de Proxy en Vite apuntando a `localhost:8000` con `base: '/app/'`.
-- [x] Mapeo de Tipos TypeScript idénticos a las esquemas Pydantic/FastAPI, configuración de TanStack Query y sistema de tokens de color por estado (`FREE` = Verde, `ASSIGNED` = Rojo/Azul, `ACTIVE` = Amarillo).
+### ⚙️️ Backend
 
-#### Fase 2: Vistas de Lectura y Dashboard
-- [x] Dashboard principal con métricas globales (Métricas KPI desde `/ips/stats` y gráfica de distribución por subred).
-- [x] Tabla interactiva de IPs con filtros por subred, estado, paginación real y badges coloreados.
-- [x] Componente indicador del estado del Scheduler (estado actual, tiempo para la próxima ejecución).
+#### **Fase 1: Estructura de Proyecto y BBDD**
+- Configuración ORM compatible con PostgreSQL y MySQL.
+- Migraciones iniciales y modelos relacionales (`Subnet`, `Client`, `IPAddress`, `IPStateHistory`).
+- Módulo CRUD completo para administración de subredes, clientes e IPs.
 
-#### Fase 3: Operaciones, Formularios y Gestiones
-- [x] Modal interactivo de asignación de IPs con reglas de negocio validadas (no permite asignar cliente si la IP es `FREE`, ni cambiar manualmente si está `ACTIVE`).
-- [x] Módulo de disparo de escaneo por rango de red o subred con selector de timeout, concurrencia, opción síncrona/asíncrona y visor de resumen `ScanSummary`.
-- [x] Consulta individual de IP con prueba de socket TCP instantánea.
-- [x] CRUD para administración de Subredes y Clientes.
-- [x] Botón de acción rápida **"Ejecutar auditoría ahora"** conectado al endpoint del scheduler.
+#### **Fase 2: Motor de Verificación Ligero**
+- **Adaptador WispHub:** Consulta de estado activo por IP mediante API.
+- **NetworkScanner (Sin dependencia de Nmap):**
+  - Verificación ICMP Ping ágil.
+  - Sockets TCP asíncronos en puertos claves de ISP: `80`, `443`, `8291` (MikroTik Winbox), `22`, `53`, `8080`, `23`.
+- **Módulo de Evaluación:** Agregación de hallazgos y almacenamiento en `ip_state_history`.
 
-#### Fase 4: Experiencia en Tiempo Real, Alertas e Historial
-- [x] Sistema de notificaciones tipo Toast al recibir estado `202 Accepted` con polling automático cada 5 segundos durante el escaneo.
-- [x] Resaltado dinámico de IPs en estado `ACTIVE` sin cliente asignado y contador global de alertas no resueltas en la barra superior.
-- [x] Visor de historial cronológico por IP en el modal de detalle (`IPStateHistory`).
+#### **Fase 3: API REST & Auditorías Programadas**
+- Endpoints REST en `/api/v1` con soporte de filtros.
+- Escaneo manual síncrono (respuesta inmediata) y asíncrono (`202 Accepted`).
+- Integración de **APScheduler** para ejecuciones programadas y disparador bajo demanda (`POST /scheduler/run-now`).
 
----
-
-## 🔌 API Endpoints Principales (`/api/v1`)
-
-| Método | Endpoint | Descripción |
-| :--- | :--- | :--- |
-| `GET` | `/api/v1/subnets` | Obtener todas las subredes / CIDR registrados |
-| `POST` | `/api/v1/subnets` | Crear una nueva subred |
-| `GET` | `/api/v1/clients` | Listado de clientes sincronizados / registrados |
-| `GET` | `/api/v1/ips` | Consulta de IPs con filtros por `subnet_id` y `status` |
-| `GET` | `/api/v1/ips/stats` | Resumen de contadores globales de estado |
-| `PUT` | `/api/v1/ips/{ip}/assign` | Asignar/desasignar IP a un cliente |
-| `POST` | `/api/v1/ips/scan` | Disparar escaneo ICMP/TCP de un rango de IP o subred |
-| `POST` | `/api/v1/scheduler/run-now` | Forzar ejecución inmediata del ciclo de auditoría |
+#### **Fase 4: Empaquetado y Dashboard de Respaldo**
+- Montaje de archivos estáticos HTML5/Bootstrap de respaldo en `/dashboard`.
+- Empaquetado Docker con `docker-compose`.
 
 ---
 
-## 🛠️ Instrucciones para Levantar la Aplicación y Probar Demos
+### 🎨 Frontend
 
-### Prerrequisitos
-- **Docker** y **Docker Compose** instalados (Recomendado).
-- Alternativamente para desarrollo local: Python 3.11+, Node.js 18+, PostgreSQL o MySQL.
+#### **Fase 1: Base Estructural**
+- Proyecto `frontend/` configurado con Vite, React, TypeScript, Tailwind CSS y shadcn/ui.
+- Configuración de proxy Vite hacia `http://localhost:8000` y subruta `/app/`.
+- Tipos de datos en TS, cliente HTTP centralizado y contenedor principal de layouts.
+
+#### **Fase 2: Visualización y Lectura**
+- Tarjetas de métricas interactivas y gráfica de dona por subred.
+- Tabla/Grid interactivo de IPs con filtrado por estado (`FREE`, `ASSIGNED`, `ACTIVE`), subred y paginación real.
+- Panel del estado del programador de tareas (estado del scheduler, última y próxima ejecución).
+
+#### **Fase 3: Operaciones y Edición**
+- Modal de asignación de cliente/IP con reglas de validación en tiempo real.
+- Disparador de escaneos por rango o subred completa con Zod (concurrencia, timeout, modo síncrono/asíncrono) y visualizador `ScanSummary`.
+- Consulta rápida individual con prueba TCP y PIN.
+- Módulos CRUD para Subredes y Clientes.
+- Botón directo de ejecución instantánea de auditoría.
+
+#### **Fase 4: Tiempo Real y Alertas**
+- Notificaciones Toast ante respuestas `202 Accepted` y polling automático cada 5s durante auditorías.
+- Destacado de alertas para IPs en estado `ACTIVE` sin cliente asignado y contador centralizado en el header.
+- Modal de historial detallado de estados por IP.
+
+#### **Fase 5: Build e Integración**
+- Compilación del frontend SPA dentro de `backend/app/static/app/` expuesto vía `StaticFiles` con fallback a `index.html`.
 
 ---
 
-### Opción 1: Ejecución Completa con Docker Compose (Recomendado)
+## 💻 Guía de Inicio y Ejecución de Demos
+
+### Opción 1: Despliegue con Docker (Recomendado)
+
+Esta opción levanta la base de datos PostgreSQL, el backend FastAPI y la interfaz frontend servida directamente.
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone https://github.com/tu-usuario/ipam-network-scanner.git
-   cd ipam-network-scanner
+   git clone https://github.com/tu-usuario/ip-management-audit.git
+   cd ip-management-audit
    ```
 
-2. **Configurar Variables de Entorno:**
-   Crea un archivo `.env` en la raíz basándote en `.env.example`:
-   ```env
-   POSTGRES_DB=ipam_db
-   POSTGRES_USER=ipam_user
-   POSTGRES_PASSWORD=secret_password
-   DATABASE_URL=postgresql://ipam_user:secret_password@db:5432/ipam_db
-   WISPHUB_API_TOKEN=tu_token_opcional
-   ```
-
-3. **Desplegar Contenedores:**
+2. **Iniciar contenedores:**
    ```bash
    docker-compose up --build -d
    ```
 
-4. **Acceso a la Aplicación:**
-   - **Frontend App (React SPA):** `http://localhost:3000/app/` o `http://localhost:80/app/`
-   - **API FastAPI (Documentación OpenAPI):** `http://localhost:8000/docs`
-   - **API ReDoc:** `http://localhost:8000/redoc`
+3. **Acceder a las aplicaciones:**
+   - **Aplicación Frontend (React SPA):** [http://localhost:8000/app/](http://localhost:8000/app/)
+   - **Documentación Interactiva API (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **Dashboard Legacy:** [http://localhost:8000/dashboard](http://localhost:8000/dashboard)
 
 ---
 
-### Opción 2: Ejecución Local para Desarrollo
+### Opción 2: Desarrollo Local (Backend y Frontend)
 
-#### 1. Levantamiento del Backend (FastAPI)
+Si deseas trabajar en desarrollo activo con Hot Reload tanto en Backend como en Frontend:
+
+#### 1. Configurar Backend (FastAPI)
+
 ```bash
 cd backend
 python -m venv venv
+
 # En Linux/macOS:
 source venv/bin/activate
 # En Windows:
 # venv\Scripts\activate
 
 pip install -r requirements.txt
+
+# Configurar variables de entorno (copiar ejemplo)
+cp .env.example .env
+
+# Iniciar servidor de desarrollo
 uvicorn app.main:app --reload --port 8000
 ```
 
-#### 2. Levantamiento del Frontend (React + Vite)
+#### 2. Configurar Frontend (React + Vite)
+
+En una nueva terminal:
+
 ```bash
 cd frontend
 npm install
+
+# Iniciar servidor de desarrollo Vite con Proxy hacia el backend
 npm run dev
 ```
-Accede al Frontend desde el puerto indicado por Vite (habitualmente `http://localhost:5173/app/`).
+
+Accede a la app en desarrollo a través de: `http://localhost:5173/`
+
+#### 3. Compilar Frontend para Producción
+
+Para compilar el frontend y dejarlo disponible estáticamente en la ruta `/app/` del backend:
+
+```bash
+cd frontend
+npm run build
+```
+*(El resultado se copiará en `backend/app/static/app`)*
 
 ---
 
-## 🧪 Guía de Uso y Demostración Práctica
+## 🔌 Endpoints API Principales
 
-Para probar las funcionalidades principales durante una demostración:
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/subnets` | Lista todas las subredes / CIDRs registradas. |
+| `GET` | `/api/v1/clients` | Lista todos los clientes registrados. |
+| `GET` | `/api/v1/ips` | Obtiene lista de IPs filtradas por estado (`FREE`, `ASSIGNED`, `ACTIVE`) o subred. |
+| `POST`| `/api/v1/ips/scan` | Dispara un escaneo manual de rango/subred (Síncrono o Asíncrono `202 Accepted`). |
+| `PUT` | `/api/v1/ips/{ip}/assign` | Asigna/desasigna titular, cliente, descripción y estado a una IP. |
+| `POST`| `/api/v1/scheduler/run-now` | Ejecuta la auditoría global de red inmediatamente. |
+| `GET` | `/api/v1/scheduler/status` | Devuelve información sobre el estado del programador automático. |
 
-1. **Crear una Subred Inicial:**
-   - Dirígete a la pestaña **Subredes** en el Panel.
-   - Agrega una subred de prueba, por ejemplo `192.168.1.0/24` o un rango controlado de tu red de pruebas.
+---
 
-2. **Realizar un Escaneo Síncrono / Asíncrono:**
-   - Ve a la sección **Escaneo de Red**.
-   - Ingresa un rango reducido (ejemplo `192.168.1.1` - `192.168.1.20`).
-   - Activa el interruptor **Modo Asíncrono** y presiona **Lanzar Escaneo**.
-   - Observa la alerta tipo Toast informando la recepción `202 Accepted` y el polling automático refrescando la tabla a medida que se analizan los puertos `80, 443, 8291 (MikroTik), 22 (SSH)`.
+## 📄 Licencia
 
-3. **Gestión de IPs Detectadas (`ACTIVE`):**
-   - Las IPs que respondan a Ping/TCP pero no tengan cliente asociado cambiarán automáticamente al estado **`ACTIVE`** (Amarillo) y aparecerán resaltadas en la barra superior.
-   - Haz clic en una IP en estado `ACTIVE` para abrir el modal de asignación y vincularla a un cliente registrado o asignarle una nota explicativa.
-
-4. **Verificar Historial de Auditoría:**
-   - Abre el modal de detalles de cualquier IP para consultar el timeline de cambios generados por la tabla `ip_state_history`.
+Este proyecto está licenciado bajo la **Licencia MIT**. Puedes consultar el archivo `LICENSE` para mayores detalles.
