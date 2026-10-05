@@ -96,3 +96,6 @@ def count_by_subnet_and_status(db: Session) -> list[tuple[int, IPStatus, int]]:
         .group_by(IPAddress.subnet_id, IPAddress.status)
     )
     return [(r[0], r[1], r[2]) for r in rows]
+
+def list_all_by_subnet(db: Session, subnet_id: int) -> list[IPAddress]:
+    return list(db.scalars(select(IPAddress).where(IPAddress.subnet_id == subnet_id)))

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/api/endpoints'
 import { errorMessage } from '@/lib/http'
@@ -10,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { SubnetRead } from '@/types/api'
+import { Download, Plus } from 'lucide-react'
 
 export function SubnetsPage() {
   const qc = useQueryClient()
@@ -32,6 +32,19 @@ export function SubnetsPage() {
       qc.invalidateQueries({ queryKey: ['subnets'] })
       qc.invalidateQueries({ queryKey: ['ips'] }) // borrado en cascada de IPs
       setDeleting(null)
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  })
+
+    const exportXlsx = useMutation({
+    mutationFn: (s: SubnetRead) => api.subnets.export(s.id),
+    onSuccess: (blob, s) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `subnet_${s.cidr.replace(/[./:]/g, '_')}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
     },
     onError: (err) => toast.error(errorMessage(err)),
   })
@@ -74,6 +87,7 @@ export function SubnetsPage() {
                 <TableCell>{stats.isSuccess ? countOf(s.id) : '…'}</TableCell>
                 <TableCell className="max-w-64 truncate" title={s.description ?? ''}>{s.description ?? '—'}</TableCell>
                 <TableCell className="space-x-2 text-right">
+                  <Button variant="outline" size="xs" disabled={exportXlsx.isPending && exportXlsx.variables?.id === s.id} onClick={() => exportXlsx.mutate(s)}> <Download /> Exportar </Button>
                   <Button variant="outline" size="xs" onClick={() => setForm({ subnet: s })}>Editar</Button>
                   <Button variant="destructive" size="xs" onClick={() => setDeleting(s)}>Eliminar</Button>
                 </TableCell>

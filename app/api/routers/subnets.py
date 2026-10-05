@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
+from app.services.subnet_report import XLSX_MIME, SubnetReportError, build_subnet_report
 from app.api.deps import get_db
 from app.api.schemas import SubnetCreate, SubnetRead, SubnetUpdate
 from app.crud import ip_address as ip_crud
@@ -61,3 +61,13 @@ def delete_subnet(subnet_id: int,
         )
     subnet_crud.delete_subnet(db, subnet_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{subnet_id}/export", summary="Exporta la subred a XLSX")
+def export_subnet(subnet_id: int, db: Session = Depends(get_db)):
+    subnet = _get_or_404(db, subnet_id)
+    try:
+        data = build_subnet_report(subnet, ip_crud.list_all_by_subnet(db, subnet_id))
+    except SubnetReportError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return Response(content=data, media_type=XLSX_MIME)

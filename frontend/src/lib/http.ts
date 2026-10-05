@@ -83,3 +83,9 @@ export function errorMessage(err: unknown): string {
     default: return `Error del servidor (${err.status}).`
   }
 }
+
+/** Descargas binarias (XLSX). */
+export async function httpBlob(path: string, opts?: Opts): Promise<Blob> {
+  const res = await core(path, opts)
+  return res.blob()
+}

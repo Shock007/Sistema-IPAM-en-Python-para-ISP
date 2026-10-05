@@ -1,10 +1,11 @@
-import { http, httpWithTotal } from '@/lib/http'
+import { http, httpBlob, httpWithTotal } from '@/lib/http'
 import type * as T from '@/types/api'
 
 export const api = {
   health: () => http<{ status: string }>('/health'),
 
   subnets: {
+    export: (id: number) => httpBlob(`/subnets/${id}/export`),
     list: (p?: { skip?: number; limit?: number }) => http<T.SubnetRead[]>('/subnets', { params: p }),
     get: (id: number) => http<T.SubnetRead>(`/subnets/${id}`),
     create: (b: T.SubnetCreate) => http<T.SubnetRead>('/subnets', { method: 'POST', body: b }),
