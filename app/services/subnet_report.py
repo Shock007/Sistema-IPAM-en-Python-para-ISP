@@ -1,12 +1,14 @@
 """Reporte XLSX de una subred: header = subred, celdas = hosts coloreados por estado."""
 import io
 import ipaddress
+import math
 from math import ceil
-
+from openpyxl.utils import get_column_letter
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from app.Models.ip_address import IPStatus
+from app.Models.subnet import Subnet
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ROWS_PER_COLUMN = 52
@@ -53,7 +55,7 @@ def build_subnet_report(subnet, ips) -> bytes:
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Reporte IP"
+    ws.title = "Reporte Subred"
     thin = Side(style="thin", color="D9D9D9")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal="center", vertical="center")
@@ -67,7 +69,10 @@ def build_subnet_report(subnet, ips) -> bytes:
     ws.row_dimensions[1].height = 22
 
     for c in range(1, ncols + 1):
-        ws.column_dimensions[ws.cell(row=1, column=c).column_letter].width = 12
+        total_columns = 5  # O el número de columnas calculado dinámicamente
+        for c in range(1, total_columns + 1):
+            col_letter = get_column_letter(c)
+            ws.column_dimensions[col_letter].width = 12
 
     # Hosts: llenado por columnas (52 filas c/u)
     for idx, host in enumerate(hosts):
@@ -90,6 +95,7 @@ def build_subnet_report(subnet, ips) -> bytes:
         ws.cell(row=2 + n, column=tx, value=LABELS[st])
     ws.cell(row=2 + len(IPStatus), column=tx, value="Sin color: no registrada en el sistema")
 
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output.getvalue()

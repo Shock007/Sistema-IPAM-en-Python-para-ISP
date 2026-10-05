@@ -63,11 +63,21 @@ def delete_subnet(subnet_id: int,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{subnet_id}/export", summary="Exporta la subred a XLSX")
+@router.get("/{subnet_id}/export")
 def export_subnet(subnet_id: int, db: Session = Depends(get_db)):
-    subnet = _get_or_404(db, subnet_id)
-    try:
-        data = build_subnet_report(subnet, ip_crud.list_all_by_subnet(db, subnet_id))
-    except SubnetReportError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    return Response(content=data, media_type=XLSX_MIME)
+    subnet = subnet_crud.get_subnet(db, subnet_id)
+    if not subnet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"La subred con id={subnet_id} no existe."
+        )
+
+    ips = ip_crud.list_all_by_subnet(db, subnet_id)
+    content = build_subnet_report(subnet, ips)
+    
+    filename = f"reporte_subred_{subnet.cidr.replace('/', '_')}.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
