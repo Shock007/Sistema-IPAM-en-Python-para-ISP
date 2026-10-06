@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import type { ScanAcceptedResponse, ScanRangeRequest, ScanSummary } from '@/types/api'
 import { QueryCard } from '@/components/QueryCard'
 import { estimateDurationMs, startIpPolling } from '@/lib/scanPolling'
+import { SaveScanDialog, type ScanItem } from '@/components/SaveScanDialog'
 
 // --- Validación -------------------------------------------------------------
 const isIp = (s: string) => z.union([z.ipv4(), z.ipv6()]).safeParse(s).success
@@ -65,6 +66,8 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 export function ScanPage() {
   const qc = useQueryClient()
   const [result, setResult] = useState<ScanResult | null>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saved, setSaved] = useState(false)
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -78,7 +81,7 @@ export function ScanPage() {
   const mutation = useMutation({
     mutationFn: (v: FormValues) => {
       const body: ScanRangeRequest = {
-        concurrency: v.concurrency, timeout: v.timeout, run_async: v.run_async,
+        concurrency: v.concurrency, timeout: v.timeout, run_async: v.run_async, dry_run: !v.run_async,
         ...(v.mode === 'range'
           ? { start_ip: v.start_ip, end_ip: v.end_ip }
           : { address: v.address, netmask: v.netmask }),
@@ -87,9 +90,9 @@ export function ScanPage() {
     },
     onSuccess: (res) => {
       setResult(res)
+      setSaved(false)
       if ('details' in res) {
-        toast.success(`Escaneo terminado: ${res.up} de ${res.total} IPs responden.`)
-        qc.invalidateQueries({ queryKey: ['ips'] }) // el escaneo pudo cambiar estados
+        toast.success(`Escaneo terminado: ${res.up} de ${res.total} IPs responden. Pulsa «Guardar estados» para registrarlo.`)
       } else {
         startIpPolling(
           qc,
@@ -100,6 +103,14 @@ export function ScanPage() {
     },
     onError: (err) => toast.error(errorMessage(err)),
   })
+
+  const items: ScanItem[] = result && 'details' in result
+  ? result.details.map((d) => {
+      const ev = d.evaluation as { previous_status?: string; new_status?: string } | null
+      return { ip_address: d.ip_address, is_up: d.is_up, registered: ev !== null,
+               previous: ev?.previous_status, next: ev?.new_status }
+    })
+  : []
 
   return (
     <div className="space-y-6">
@@ -162,9 +173,13 @@ export function ScanPage() {
               </span>
             </label>
 
-            <div>
+            <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending ? 'Escaneando...' : 'Iniciar escaneo'}
+              </Button>
+              <Button type="button" variant="secondary" disabled={items.length === 0 || saved}
+              onClick={() => setSaveOpen(true)}>
+                {saved ? 'Estados guardados' : 'Guardar estados de las IP’s escaneadas'}
               </Button>
             </div>
           </form>
@@ -183,6 +198,10 @@ export function ScanPage() {
           </CardHeader>
         </Card>
       ))}
+      {saveOpen && (
+        <SaveScanDialog items={items} method="PING"
+        onSaved={() => setSaved(true)} onClose={() => setSaveOpen(false)} />
+        )}
       <QueryCard />
     </div>
   )

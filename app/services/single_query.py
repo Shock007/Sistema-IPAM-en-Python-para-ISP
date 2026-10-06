@@ -16,9 +16,9 @@ from app.services.authorization import authorize_tcp_scan, UnauthorizedTCPScanEr
 
 __all__ = ["query_single_ip", "UnauthorizedTCPScanError"]
 
-
+##def query_single_ip(db, ip_address, use_tcp=False, provider_pin=None, persist: bool = True) -> dict:
 def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
-                     provider_pin: str | None = None) -> dict:
+                     provider_pin: str | None = None, persist: bool = True) -> dict:
     """Ejecuta la consulta única sobre una IP.
 
     Raises:
@@ -53,7 +53,7 @@ def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
     ip_obj = ip_crud.get_ip_by_address(db, ip_address)
     if ip_obj:
         result["evaluation"] = record_result(
-            db, ip_obj.id, is_up=is_up, method=method, details=details,
+            db, ip_obj.id, is_up=is_up, method=method, details=details, persist=persist
         )
     else:
         result["evaluation"] = None

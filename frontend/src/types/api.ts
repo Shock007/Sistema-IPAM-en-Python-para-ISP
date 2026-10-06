@@ -59,6 +59,7 @@ export interface ScanRangeRequest {
   concurrency?: number // 1-200, def. 30
   timeout?: number // 1-30, def. 2
   run_async?: boolean
+  dry_run?: boolean
 }
 export interface ScanDetail {
   ip_address: string
@@ -83,6 +84,7 @@ export interface IPQueryRequest {
   ip_address: string
   use_tcp?: boolean
   pin?: string | null
+  dry_run?: boolean
 }
 export interface IPQueryResponse {
   ip_address: string
@@ -147,4 +149,24 @@ export interface SchedulerStatus {
   job_registered: boolean
   interval_hours: number
   next_run_time: string | null
+}
+
+// en ScanRangeRequest e IPQueryRequest:
+//   dry_run?: boolean
+
+export interface ScanCommitRequest {
+  results: { ip_address: string; is_up: boolean }[]
+  method?: CheckMethod
+  register_unregistered?: boolean
+  new_subnet?: { cidr: string; name: string } | null
+  client_id?: number | null
+  details?: string | null
+}
+export interface ScanCommitResponse {
+  updated: number
+  registered: number
+  skipped: number
+  subnet_created: string | null
+  changes: { ip_address: string; action: 'updated' | 'registered'; previous_status: string | null; new_status: string }[]
+  skipped_ips: string[]
 }

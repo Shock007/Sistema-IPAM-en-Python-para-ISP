@@ -68,7 +68,7 @@ class ScanRangeRequest(BaseModel):
 
     Acepta un rango explícito (start_ip/end_ip) O una red (address/netmask).
     """
-
+    dry_run: bool = Field(default=False, description="Si true, no guarda: solo vista previa.")
     start_ip: Optional[IPvAnyAddress] = None
     end_ip: Optional[IPvAnyAddress] = None
     address: Optional[IPvAnyAddress] = None
@@ -95,6 +95,12 @@ class ScanRangeRequest(BaseModel):
                 "Debe proporcionar un rango (start_ip y end_ip) o una red "
                 "(address y netmask)."
             )
+        return self
+    
+    @model_validator(mode="after")
+    def _no_async_dry_run(self) -> "ScanRangeRequest":
+        if self.run_async and self.dry_run:
+            raise ValueError("dry_run no es compatible con run_async.")
         return self
 
 # --- Client -----------------------------------------------------------
@@ -250,6 +256,7 @@ class IPQueryRequest(BaseModel):
     ip_address: IPvAnyAddress
     use_tcp: bool = False
     pin: Optional[str] = Field(default=None, repr=False)
+    dry_run: bool = False
 
 
 class IPQueryResponse(BaseModel):
@@ -266,3 +273,34 @@ class SchedulerStatus(BaseModel):
     job_registered: bool
     interval_hours: int
     next_run_time: Optional[str] = None
+
+
+# --- Commit de escaneo ---
+class ScanCommitItem(BaseModel):
+    ip_address: IPvAnyAddress
+    is_up: bool
+
+
+class ScanCommitRequest(BaseModel):
+    results: list[ScanCommitItem] = Field(min_length=1, max_length=1024)
+    method: CheckMethod = CheckMethod.PING
+    register_unregistered: bool = False
+    new_subnet: Optional[SubnetCreate] = None
+    client_id: Optional[int] = None          # solo consulta única (1 resultado)
+    details: Optional[str] = Field(default=None, max_length=500)
+
+
+class ScanCommitChange(BaseModel):
+    ip_address: str
+    action: str                               # updated | registered
+    previous_status: Optional[str] = None
+    new_status: str
+
+
+class ScanCommitResponse(BaseModel):
+    updated: int
+    registered: int
+    skipped: int
+    subnet_created: Optional[str] = None
+    changes: list[ScanCommitChange]
+    skipped_ips: list[str]

@@ -35,6 +35,8 @@ export const api = {
     scan: (b: T.ScanRangeRequest) =>
       http<T.ScanSummary | T.ScanAcceptedResponse>('/ips/scan', { method: 'POST', body: b }),
     query: (b: T.IPQueryRequest) => http<T.IPQueryResponse>('/ips/query', { method: 'POST', body: b }),
+    commit: (b: T.ScanCommitRequest) =>
+      http<T.ScanCommitResponse>('/ips/scan/commit', { method: 'POST', body: b }),
   },
 
   scheduler: {

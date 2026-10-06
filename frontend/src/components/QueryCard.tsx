@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api } from '@/api/endpoints'
 import { ApiError, errorMessage } from '@/lib/http'
@@ -13,6 +13,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { IPQueryResponse, IPStatus } from '@/types/api'
+import {SaveScanDialog} from '@/components/SaveScanDialog'
+
+
+
 
 const PORT_NAMES: Record<string, string> = {
   '80': 'HTTP', '443': 'HTTPS', '8291': 'MikroTik', '22': 'SSH',
@@ -88,8 +92,9 @@ function ResultView({ r }: { r: IPQueryResponse }) {
 }
 
 export function QueryCard() {
-  const qc = useQueryClient()
   const [result, setResult] = useState<IPQueryResponse | null>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saved, setSaved] = useState(false)
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -103,10 +108,10 @@ export function QueryCard() {
         ip_address: v.ip_address,
         use_tcp: v.use_tcp,
         pin: v.use_tcp ? v.pin.trim() : null, // el PIN solo viaja si se pidió TCP
+        dry_run: true
       }),
     onSuccess: (res) => {
-      setResult(res)
-      qc.invalidateQueries({ queryKey: ['ips'] })
+      setResult(res); setSaved(false)
     },
     onError: (err) => {
       setResult(null)
@@ -115,7 +120,7 @@ export function QueryCard() {
     },
     onSettled: () => setValue('pin', ''), // nunca dejar el PIN en el formulario
   })
-
+  
   return (
     <>
       <Card>
@@ -156,9 +161,13 @@ export function QueryCard() {
               </div>
             )}
 
-            <div>
+            <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending ? 'Consultando...' : 'Consultar'}
+              </Button>
+              <Button type="button" variant="secondary" disabled={!result || saved}
+                onClick={() => setSaveOpen(true)}>
+                {saved ? 'Estado guardado' : 'Guardar estados de las IP’s escaneadas'}
               </Button>
             </div>
           </form>
@@ -166,6 +175,19 @@ export function QueryCard() {
       </Card>
 
       {result && <ResultView r={result} />}
+
+
+      {saveOpen && result && (() => {
+        const ev = result.evaluation as { previous_status?: string; new_status?: string } | null
+        const up = result.ping || (result.tcp ? Object.values(result.tcp).some(Boolean) : false)
+        return (
+          <SaveScanDialog single method={result.tcp ? 'TCP' : 'PING'}
+            items={[{ ip_address: result.ip_address, is_up: up, registered: ev !== null,
+              previous: ev?.previous_status, next: ev?.new_status }]}
+            onSaved={() => setSaved(true)} onClose={() => setSaveOpen(false)} />
+        )
+      })()}
+
     </>
   )
 }

@@ -12,6 +12,8 @@ PUT    /{ip}/assign asigna titular/estado/descripción
 import ipaddress
 import logging
 from typing import Optional, Union
+from app.api.schemas import ScanCommitRequest, ScanCommitResponse  # añadir al import existente
+from app.services.scan_commit import commit_scan
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status,
@@ -171,8 +173,23 @@ async def scan_ips(
                                     total_ips=len(ips), concurrency=payload.concurrency,
                                     timeout=payload.timeout)
 
-    return await run_in_threadpool(run_range_scan, db, ips, payload.concurrency, payload.timeout)
+    return await run_in_threadpool(run_range_scan, db, ips, payload.concurrency,
+                                   payload.timeout, not payload.dry_run)
 
+@router.post("/scan/commit", response_model=ScanCommitResponse,
+             summary="Guarda los resultados de un escaneo/consulta (vista previa confirmada)")
+def commit_scan_results(payload: ScanCommitRequest, db: Session = Depends(get_db)):
+    if payload.client_id is not None:
+        if len(payload.results) != 1:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                "client_id solo aplica a una consulta única.")
+        if not client_crud.get_client(db, payload.client_id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND,
+                                f"El cliente con id={payload.client_id} no existe.")
+    try:
+        return commit_scan(db, payload)
+    except IntegrityError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Conflicto al guardar (duplicado).") from exc
 
 # --- Consulta única -------------------------------------------------------
 
@@ -186,7 +203,7 @@ def query_ip(payload: IPQueryRequest, request: Request, db: Session = Depends(ge
         pin_limiter.check(key)
     try:
         result = query_single_ip(db, str(payload.ip_address), use_tcp=payload.use_tcp,
-                                 provider_pin=payload.pin)
+                                 provider_pin=payload.pin, persist=not payload.dry_run)
     except UnauthorizedTCPScanError as exc:
         pin_limiter.register_failure(key)
         raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc

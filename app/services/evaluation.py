@@ -72,3 +72,48 @@ def record_result(db: Session, ip_id: int, is_up: bool, method: CheckMethod,
         "method": method.value,
         "details": details,
     }
+
+def decide_status(previous_status: str, is_up: bool, has_client: bool) -> str:
+    new_status = previous_status
+    if is_up:
+        if not has_client:
+            new_status = IPStatus.ACTIVE.value
+    elif previous_status == IPStatus.ACTIVE.value:
+        new_status = IPStatus.FREE.value
+    return new_status
+
+
+def record_result(db: Session, ip_id: int, is_up: bool, method: CheckMethod,
+                   details: str | None = None, persist: bool = True) -> dict:
+    # ... (docstring igual)
+    if isinstance(method, str):
+        method = CheckMethod(method)
+
+    ip_obj = ip_crud.get_ip(db, ip_id)
+    if not ip_obj:
+        raise ValueError(f"IP con id={ip_id} no existe en la base de datos.")
+
+    previous_status = (
+        ip_obj.status.value if hasattr(ip_obj.status, "value") else ip_obj.status
+    )
+    new_status = decide_status(previous_status, is_up, ip_obj.client_id is not None)
+
+    result = {
+        "ip_id": ip_id, "is_up": is_up, "previous_status": previous_status,
+        "new_status": new_status, "method": method.value, "details": details,
+    }
+    if not persist:          # vista previa: no toca la BD
+        return result
+
+    try:
+        if new_status != previous_status:
+            ip_crud.update_ip_status(db, ip_id, IPStatus(new_status), commit=False)
+        history_crud.create_history(
+            db, ip_id=ip_id, previous_status=previous_status, new_status=new_status,
+            method=method, details=details, commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return result

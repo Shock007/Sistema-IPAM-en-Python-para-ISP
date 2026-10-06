@@ -99,7 +99,7 @@ def scan_range(ips: list[str], concurrency: int = DEFAULT_CONCURRENCY,
 # --- Orquestación: ping + registro en ip_state_history --------------------
 
 def run_range_scan(db: Session, ips: list[str], concurrency: int = DEFAULT_CONCURRENCY,
-                    timeout: int = DEFAULT_TIMEOUT) -> dict:
+                    timeout: int = DEFAULT_TIMEOUT, persist: bool = True) -> dict:
     """Ejecuta el ping sobre todas las IPs del rango y, para las que ya
     estén registradas en la base de datos, delega en el Módulo de
     Evaluación (app.services.evaluation.record_result) para actualizar su
@@ -111,6 +111,11 @@ def run_range_scan(db: Session, ips: list[str], concurrency: int = DEFAULT_CONCU
     from app.services.evaluation import record_result  # import local, evita ciclos
 
     results = scan_range(ips, concurrency=concurrency, timeout=timeout)
+
+    entry["evaluation"] = record_result(
+    db, ip_obj.id, is_up=is_up, method=CheckMethod.PING,
+    details=f"range_scan ping={is_up}", persist=persist,
+    )
 
     summary = {
         "total": len(results),
@@ -153,3 +158,5 @@ def run_range_scan_background(session_factory, ips: list[str],
         logger.exception("Falló el escaneo en segundo plano")
     finally:
         db.close()
+
+        
