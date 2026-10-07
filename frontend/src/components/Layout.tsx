@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
-import { LayoutDashboard, Network, Server, Users, Radar, Bell } from 'lucide-react'
+import { LayoutDashboard, Network, Server, Users, Radar, Bell, SettingsIcon } from 'lucide-react'
 import { api } from '@/api/endpoints'
 
 
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/subnets', label: 'Subredes', icon: Server },
   { to: '/clients', label: 'Clientes', icon: Users },
   { to: '/scan', label: 'Escaneo', icon: Radar },
+  { to: '/env', label: 'Variables de entorno', icon: SettingsIcon },
 ]
 
 function AlertsBadge() {

@@ -6,6 +6,7 @@ import { IPsPage } from '@/pages/IPs'
 import { ScanPage } from '@/pages/Scan'
 import { SubnetsPage } from '@/pages/Subnets'
 import { ClientsPage } from '@/pages/Clients'
+import { EnvSettings } from './pages/EnvSettings'
 
 export const router = createBrowserRouter(
   [
@@ -18,6 +19,7 @@ export const router = createBrowserRouter(
         { path: 'clients', element: <ClientsPage /> },
         { path: 'scan', element: <ScanPage /> },
         { path: '*', element: <Placeholder title="No encontrado" phase="ninguna fase" /> },
+        { path: 'env', element: <EnvSettings /> },
       ],
     },
   ],

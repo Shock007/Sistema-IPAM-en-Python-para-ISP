@@ -1,0 +1,71 @@
+<!-- Menú Lateral -->
+<aside class="sidebar">
+  <div class="logo">IPAM</div>
+  <nav>
+    <a href="#" onclick="showTab('dashboard')">Dashboard</a>
+    <a href="#" onclick="showTab('ips')">Direcciones IP</a>
+    <a href="#" onclick="showTab('subnets')">Subredes</a>
+    <a href="#" onclick="showTab('clients')">Clientes</a>
+    <a href="#" onclick="showTab('escaneo')">Escaneo</a>
+    <a href="#" onclick="showTab('env')" class="active">Variables del entorno</a>
+  </nav>
+</aside>
+
+<!-- Contenido de la pestaña Variables del entorno -->
+<section id="tab-env" class="tab-content">
+  <h2>Variables del entorno</h2>
+
+  <!-- Banner de advertencia cuando la BBDD es nula -->
+  <div id="db-warning-banner" class="alert alert-warning" style="display: none; background-color: #fff3cd; color: #856404; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ffeeba;">
+    ⚠️ <strong>Atención:</strong> <span id="warning-text">Cuidado, el programa podrá escanear las IP que usted facilite pero no se guardara el registro de ello en ningún lado.</span>
+  </div>
+
+  <form id="env-form" onsubmit="saveEnvSettings(event)">
+    <fieldset style="border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 6px;">
+      <legend><strong>¿Qué base de datos usará?</strong></legend>
+      <label>URL de conexión a la Base de Datos (PostgreSQL / MySQL):</label>
+      <input type="text" id="env-db-url" placeholder="postgresql+psycopg2://usuario:password@localhost:5432/ipam_db" style="width: 100%; padding: 8px; margin-top: 5px;" />
+      <small style="color: #666;">Si se deja en blanco, la variable se comentará en .env.</small>
+    </fieldset>
+
+    <fieldset style="border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 6px;">
+      <legend><strong>¿Qué PIN de seguridad usará?</strong></legend>
+      <label>Ingrese el PIN para escaneos de puertos TCP:</label>
+      <input type="password" id="env-pin" placeholder="PIN de seguridad" style="width: 100%; padding: 8px; margin-top: 5px;" />
+    </fieldset>
+
+    <fieldset style="border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 6px;">
+      <legend><strong>¿Cómo quiere que funcione su Escaneo Automático Programado?</strong></legend>
+      
+      <div style="margin-bottom: 15px;">
+        <label>Estado:</label>
+        <select id="env-scheduler-status" style="padding: 8px; margin-left: 10px;">
+          <option value="">Seleccione</option>
+          <option value="true">Encendido</option>
+          <option value="false">Apagado</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 15px;">
+        <label>¿En cuántas horas se ejecutará?:</label>
+        <input type="number" id="env-interval" min="1" placeholder="Ej. 6" style="padding: 8px; width: 100px;" /> horas
+      </div>
+
+      <div>
+        <label>¿Con qué concurrencia se ejecutará?:</label>
+        <input type="number" id="env-concurrency" min="1" max="200" placeholder="Ej. 30" style="padding: 8px; width: 100px;" /> IPs en simultáneo
+      </div>
+    </fieldset>
+
+    <fieldset style="border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 6px;">
+      <legend><strong>¿Posee una API de WispHub? Si es así ingrésela aquí:</strong></legend>
+      <label>API Key de WispHub:</label>
+      <input type="text" id="env-wisphub-key" placeholder="WispHub API Key" style="width: 100%; padding: 8px; margin-top: 5px; margin-bottom: 10px;" />
+      
+      <label>URL Base WispHub:</label>
+      <input type="text" id="env-wisphub-url" placeholder="https://api.wisphub.net/v1" style="width: 100%; padding: 8px; margin-top: 5px;" />
+    </fieldset>
+
+    <button type="submit" style="background-color: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">Guardar Configuración</button>
+  </form>
+</section>
