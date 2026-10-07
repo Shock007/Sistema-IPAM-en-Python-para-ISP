@@ -34,6 +34,12 @@ def run_scheduled_audit() -> dict:
     Abre y cierra su propia sesión de BD porque corre en el hilo del
     scheduler, fuera del ciclo de vida de una request HTTP normal.
     """
+
+    if SessionLocal is None:
+        logger.warning("Auditoría omitida: no hay base de datos configurada.")
+        return {"subredes_escaneadas": 0, "subredes_omitidas": 0, "total_ips": 0,
+                "up": 0, "down": 0, "errores": [{"error": "Sin base de datos"}]}
+
     db = SessionLocal()
     resumen = {
         "subredes_escaneadas": 0,
@@ -89,6 +95,11 @@ def run_scheduled_audit() -> dict:
 
 def start_scheduler() -> None:
     """Registra el job periódico e inicia el scheduler. Idempotente."""
+
+    if SessionLocal is None:
+        logger.warning("Scheduler no iniciado: no hay base de datos configurada.")
+        return
+
     if scheduler.running:
         return
 

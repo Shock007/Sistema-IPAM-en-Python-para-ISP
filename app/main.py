@@ -22,21 +22,6 @@ from app.services.scheduler import shutdown_scheduler, start_scheduler
 from app.spa import SPAStaticFiles
 from app.api.routers.env import router as env_router
 
-app = FastAPI(title="IPAM System API", version="0.5.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-app.include_router(ips_router)
-app.include_router(subnets_router)
-app.include_router(clients_router)
-app.include_router(env_router)  # Pestaña Variables de Entorno
-
-app.mount("/dashboard", StaticFiles(directory="static/dashboard", html=True), name="dashboard")
 
 logger = logging.getLogger("ipam.main")
 
@@ -62,6 +47,21 @@ app = FastAPI(
     version="0.5.0",
     lifespan=lifespan,
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(ips_router)
+app.include_router(subnets_router)
+app.include_router(clients_router)
+app.include_router(scheduler_router)
+app.include_router(env_router)
+
+app.mount("/dashboard", StaticFiles(directory="static/dashboard", html=True), name="dashboard")
 
 # En producción restringir allow_origins a la URL real del frontend.
 app.add_middleware(

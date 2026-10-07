@@ -7,6 +7,9 @@ from app.config import DATABASE_URL
 from app.database import Base
 from app.Models import Subnet, Client, IPAddress, IPStateHistory  # noqa: F401 (registra metadata)
 
+if not DATABASE_URL:
+    raise SystemExit("DATABASE_URL no está configurada en .env. Defínela antes de ejecutar alembic.")
+
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 

@@ -17,7 +17,7 @@ from app.services.authorization import authorize_tcp_scan, UnauthorizedTCPScanEr
 __all__ = ["query_single_ip", "UnauthorizedTCPScanError"]
 
 ##def query_single_ip(db, ip_address, use_tcp=False, provider_pin=None, persist: bool = True) -> dict:
-def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
+def query_single_ip(db: Session | None, ip_address: str, use_tcp: bool = False,
                      provider_pin: str | None = None, persist: bool = True) -> dict:
     """Ejecuta la consulta única sobre una IP.
 
@@ -49,8 +49,8 @@ def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
         is_up = ping_ok or any(tcp_results.values())
         details = f"ping={ping_ok}; tcp={tcp_results}"
 
-    # 4) Evaluación / historial si la IP está registrada.
-    ip_obj = ip_crud.get_ip_by_address(db, ip_address)
+    # 4) Evaluación / historial si hay BD y la IP está registrada.
+    ip_obj = ip_crud.get_ip_by_address(db, ip_address) if db is not None else None
     if ip_obj:
         result["evaluation"] = record_result(
             db, ip_obj.id, is_up=is_up, method=method, details=details, persist=persist
@@ -58,6 +58,8 @@ def query_single_ip(db: Session, ip_address: str, use_tcp: bool = False,
     else:
         result["evaluation"] = None
         result["note"] = (
+            "No hay base de datos configurada; se consultó pero no se guardó registro."
+            if db is None else
             "La IP no está registrada en la base de datos; se consultó "
             "pero no se guardó historial."
         )

@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_db, get_session_factory
+from app.api.deps import get_db, get_optional_db, get_session_factory
 from app.database import Base
 from app.Models.client import Client
 from app.Models.ip_address import IPAddress, IPStatus
@@ -25,6 +25,7 @@ TEST_ENGINE = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(bind=TEST_ENGINE, autocommit=False, autoflush=False, future=True)
+
 
 
 @pytest.fixture()
@@ -51,6 +52,7 @@ def client(db_session):
 
     app.dependency_overrides[get_db] = _override_get_db
     # Las tareas en segundo plano abren su propia sesión: apuntarla al motor de test.
+    app.dependency_overrides[get_optional_db] = _override_get_db
     app.dependency_overrides[get_session_factory] = lambda: TestingSessionLocal
     with TestClient(app) as test_client:
         yield test_client

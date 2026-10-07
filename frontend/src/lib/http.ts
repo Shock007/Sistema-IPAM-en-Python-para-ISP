@@ -80,6 +80,7 @@ export function errorMessage(err: unknown): string {
     case 400: return `Rango no válido o demasiado grande. ${err.message}`
     case 422: return `Datos no válidos: ${err.message}`
     case 404: return err.message
+    case 503: return err.message // BD no configurada
     default: return `Error del servidor (${err.status}).`
   }
 }

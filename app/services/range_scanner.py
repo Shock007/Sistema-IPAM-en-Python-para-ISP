@@ -100,22 +100,16 @@ def scan_range(ips: list[str], concurrency: int = DEFAULT_CONCURRENCY,
 
 def run_range_scan(db: Session, ips: list[str], concurrency: int = DEFAULT_CONCURRENCY,
                     timeout: int = DEFAULT_TIMEOUT, persist: bool = True) -> dict:
-    """Ejecuta el ping sobre todas las IPs del rango y, para las que ya
-    estén registradas en la base de datos, delega en el Módulo de
-    Evaluación (app.services.evaluation.record_result) para actualizar su
-    estado e insertar la fila correspondiente en ip_state_history.
+    """Ejecuta el ping sobre todas las IPs del rango y, para las ya
+    registradas, delega en el Módulo de Evaluación para actualizar su estado
+    e insertar la fila en ip_state_history (si persist=True).
 
-    Las IPs del rango que NO existen en la base de datos se reportan en el
-    resultado, pero no generan historial (no hay ip_id al cual asociarlo).
+    Las IPs que NO existen en la base de datos se reportan en el resultado,
+    pero no generan historial.
     """
     from app.services.evaluation import record_result  # import local, evita ciclos
 
     results = scan_range(ips, concurrency=concurrency, timeout=timeout)
-
-    entry["evaluation"] = record_result(
-    db, ip_obj.id, is_up=is_up, method=CheckMethod.PING,
-    details=f"range_scan ping={is_up}", persist=persist,
-    )
 
     summary = {
         "total": len(results),
@@ -131,11 +125,11 @@ def run_range_scan(db: Session, ips: list[str], concurrency: int = DEFAULT_CONCU
         is_up = r["is_up"]
         entry = {"ip_address": ip_address, "is_up": is_up, "evaluation": None}
 
-        ip_obj = ip_crud.get_ip_by_address(db, ip_address)
+        ip_obj = ip_crud.get_ip_by_address(db, ip_address) if db is not None else None
         if ip_obj:
             entry["evaluation"] = record_result(
                 db, ip_obj.id, is_up=is_up, method=CheckMethod.PING,
-                details=f"range_scan ping={is_up}",
+                details=f"range_scan ping={is_up}", persist=persist,
             )
             summary["registered"] += 1
         else:
@@ -146,11 +140,17 @@ def run_range_scan(db: Session, ips: list[str], concurrency: int = DEFAULT_CONCU
 
     return summary
 
+
 def run_range_scan_background(session_factory, ips: list[str],
                                concurrency: int = DEFAULT_CONCURRENCY,
                                timeout: int = DEFAULT_TIMEOUT) -> None:
     """Versión para BackgroundTasks: abre y cierra su PROPIA sesión, sin
     depender de la sesión de la request (que puede estar ya cerrada)."""
+    
+    if session_factory is None:
+        logger.warning("Escaneo en segundo plano omitido: no hay base de datos configurada.")
+        return
+    
     db = session_factory()
     try:
         run_range_scan(db, ips, concurrency=concurrency, timeout=timeout)
@@ -158,5 +158,3 @@ def run_range_scan_background(session_factory, ips: list[str],
         logger.exception("Falló el escaneo en segundo plano")
     finally:
         db.close()
-
-        

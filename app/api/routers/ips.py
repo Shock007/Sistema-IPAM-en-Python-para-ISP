@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from app.api.deps import get_db, get_session_factory
+from app.api.deps import get_db, get_optional_db, get_session_factory
 from app.api.rate_limit import pin_limiter
 from app.api.schemas import (
     IPAddressRead, IPAssignRequest, IPCreateRequest, IPQueryRequest, IPQueryResponse,
@@ -149,10 +149,11 @@ async def scan_ips(
     payload: ScanRangeRequest,
     background_tasks: BackgroundTasks,
     response: Response,
-    db: Session = Depends(get_db),
+    db: Session | None = Depends(get_optional_db),
     session_factory=Depends(get_session_factory),
 ):
-    """`run_async=false`: espera y devuelve el resumen. `run_async=true`: 202 inmediato."""
+    """`run_async=false`: espera y devuelve el resumen. `run_async=true`: 202 inmediato.
+    Sin base de datos: escanea pero no guarda (solo modo síncrono)."""
     try:
         ips = build_ip_list(
             start_ip=str(payload.start_ip) if payload.start_ip else None,
@@ -164,8 +165,9 @@ async def scan_ips(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     if payload.run_async:
-        # La tarea abre su PROPIA sesión: la `db` de la request puede estar
-        # cerrada cuando la tarea se ejecute (depende de la versión de FastAPI).
+        if session_factory is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                "El modo asíncrono requiere base de datos (no habría dónde guardar).")
         background_tasks.add_task(run_range_scan_background, session_factory, ips,
                                   payload.concurrency, payload.timeout)
         response.status_code = status.HTTP_202_ACCEPTED
@@ -173,8 +175,9 @@ async def scan_ips(
                                     total_ips=len(ips), concurrency=payload.concurrency,
                                     timeout=payload.timeout)
 
+    persist = (not payload.dry_run) and db is not None
     return await run_in_threadpool(run_range_scan, db, ips, payload.concurrency,
-                                   payload.timeout, not payload.dry_run)
+                                   payload.timeout, persist)
 
 @router.post("/scan/commit", response_model=ScanCommitResponse,
              summary="Guarda los resultados de un escaneo/consulta (vista previa confirmada)")
@@ -195,7 +198,8 @@ def commit_scan_results(payload: ScanCommitRequest, db: Session = Depends(get_db
 
 @router.post("/query", response_model=IPQueryResponse,
              summary="Consulta única: ping; TCP solo con PIN del proveedor")
-def query_ip(payload: IPQueryRequest, request: Request, db: Session = Depends(get_db)):
+def query_ip(payload: IPQueryRequest, request: Request,
+             db: Session | None = Depends(get_optional_db)):
     """Función síncrona a propósito: se ejecuta en threadpool, donde
     scan_ports puede usar asyncio.run sin chocar con el event loop."""
     key = request.client.host if request.client else "unknown"

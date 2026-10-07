@@ -170,3 +170,35 @@ export interface ScanCommitResponse {
   changes: { ip_address: string; action: 'updated' | 'registered'; previous_status: string | null; new_status: string }[]
   skipped_ips: string[]
 }
+// Env (los secretos nunca viajan en el GET: solo *_set y vistas enmascaradas)
+export interface EnvConfig {
+  database_url_set: boolean
+  database_url_masked: string | null
+  provider_pin_set: boolean
+  wisphub_api_key_set: boolean
+  wisphub_api_key_masked: string | null
+  wisphub_base_url: string | null
+  scheduler_enabled: boolean
+  scan_interval_hours: number
+  scan_concurrency: number
+  scan_timeout: number
+}
+/** Campo ausente = conservar · "" = quitar (queda comentada) · valor = reemplazar. */
+export interface EnvUpdate {
+  database_url?: string
+  provider_pin?: string
+  wisphub_api_key?: string
+  wisphub_base_url?: string
+  scheduler_enabled?: boolean
+  scan_interval_hours?: number
+  scan_concurrency?: number
+  scan_timeout?: number
+}
+export interface EnvUpdateResponse {
+  status: string
+  message: string
+  db_configured: boolean
+  restart_required: boolean
+  warning: string | null
+  current_config: EnvConfig
+}

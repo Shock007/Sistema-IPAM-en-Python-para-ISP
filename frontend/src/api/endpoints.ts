@@ -43,4 +43,9 @@ export const api = {
     status: () => http<T.SchedulerStatus>('/scheduler/status'),
     runNow: () => http<{ message: string }>('/scheduler/run-now', { method: 'POST' }),
   },
+
+  env: {
+    get: () => http<T.EnvConfig>('/env'),
+    update: (b: T.EnvUpdate) => http<T.EnvUpdateResponse>('/env', { method: 'PUT', body: b }),
+  },
 }
