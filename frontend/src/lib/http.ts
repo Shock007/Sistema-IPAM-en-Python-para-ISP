@@ -44,12 +44,13 @@ interface Opts {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   params?: Params
   body?: unknown
+  headers?: Record<string, string>
 }
 
-async function core(path: string, { method = 'GET', params, body }: Opts = {}) {
+async function core(path: string, { method = 'GET', params, body, headers }: Opts = {}) {
   const res = await fetch(buildUrl(path, params), {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...headers },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) throw await toApiError(res)

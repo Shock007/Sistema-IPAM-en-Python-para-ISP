@@ -66,10 +66,11 @@ app.mount("/dashboard", StaticFiles(directory="static/dashboard", html=True), na
 # En producción restringir allow_origins a la URL real del frontend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
+                   "http://localhost:8000", "http://127.0.0.1:8000"],
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Total-Count"],  # sin esto el navegador no puede leerlo
+    expose_headers=["X-Total-Count"],
 )
 
 app.include_router(ips_router)

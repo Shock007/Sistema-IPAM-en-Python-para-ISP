@@ -6,6 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.env_service import public_config, update_env_file
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from app.api.security import require_admin
+
+router = APIRouter(prefix="/api/v1/env", tags=["environment"],
+                   dependencies=[Depends(require_admin)])
+
 router = APIRouter(prefix="/api/v1/env", tags=["environment"])
 
 _UNSAFE = re.compile(r"[\s#\"'\\]")

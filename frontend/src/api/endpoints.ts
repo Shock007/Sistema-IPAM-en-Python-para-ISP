@@ -45,7 +45,8 @@ export const api = {
   },
 
   env: {
-    get: () => http<T.EnvConfig>('/env'),
-    update: (b: T.EnvUpdate) => http<T.EnvUpdateResponse>('/env', { method: 'PUT', body: b }),
+    get: (pin?: string) => http<T.EnvConfig>('/env', { headers: pin ? { 'X-Admin-PIN': pin } : undefined }),
+    update: (b: T.EnvUpdate, pin?: string) =>
+      http<T.EnvUpdateResponse>('/env', { method: 'PUT', body: b, headers: pin ? { 'X-Admin-PIN': pin } : undefined }),
   },
 }

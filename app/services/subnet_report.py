@@ -1,7 +1,6 @@
 """Reporte XLSX de una subred: header = subred, celdas = hosts coloreados por estado."""
 import io
 import ipaddress
-import math
 from math import ceil
 from openpyxl.utils import get_column_letter
 from openpyxl import Workbook
@@ -69,10 +68,7 @@ def build_subnet_report(subnet, ips) -> bytes:
     ws.row_dimensions[1].height = 22
 
     for c in range(1, ncols + 1):
-        total_columns = 5  # O el número de columnas calculado dinámicamente
-        for c in range(1, total_columns + 1):
-            col_letter = get_column_letter(c)
-            ws.column_dimensions[col_letter].width = 12
+        ws.column_dimensions[get_column_letter(c)].width = 12
 
     # Hosts: llenado por columnas (52 filas c/u)
     for idx, host in enumerate(hosts):
@@ -88,7 +84,8 @@ def build_subnet_report(subnet, ips) -> bytes:
 
     # Leyenda a la derecha
     sw, tx = ncols + 2, ncols + 3
-    ws.column_dimensions[ws.cell(row=1, column=tx).column_letter].width = 26
+    ws.column_dimensions[get_column_letter(sw)].width = 4
+    ws.column_dimensions[get_column_letter(tx)].width = 30
     for n, st in enumerate(IPStatus):
         bg, _ = COLORS[st]
         ws.cell(row=2 + n, column=sw).fill = PatternFill("solid", fgColor=bg)

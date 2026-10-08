@@ -73,6 +73,11 @@ def export_subnet(subnet_id: int, db: Session = Depends(get_db)):
         )
 
     ips = ip_crud.list_all_by_subnet(db, subnet_id)
+    try:
+        content = build_subnet_report(subnet, ips)
+    except SubnetReportError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    
     content = build_subnet_report(subnet, ips)
     
     filename = f"reporte_subred_{subnet.cidr.replace('/', '_')}.xlsx"
