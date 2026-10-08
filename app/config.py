@@ -9,6 +9,30 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+# Funciones que leen os.environ
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+
+
+def get_scan_interval_hours() -> int:
+    return _int_env("SCAN_INTERVAL_HOURS", 6)
+
+
+def get_scan_concurrency() -> int:
+    return _int_env("SCAN_CONCURRENCY", 30)
+
+
+def get_scan_timeout() -> int:
+    return _int_env("SCAN_TIMEOUT", 2)
+
+
+def get_scheduler_enabled() -> bool:
+    return os.getenv("SCHEDULER_ENABLED", "true").strip().lower() == "true"
+
 # Configuración de la base de datos (PostgreSQL o MySQL) según .env
 
 DATABASE_URL: str | None = os.getenv("DATABASE_URL")

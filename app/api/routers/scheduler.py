@@ -6,6 +6,7 @@ from app.config import SCAN_INTERVAL_HOURS, SCHEDULER_ENABLED
 from app.services.scheduler import JOB_ID, run_scheduled_audit, scheduler
 from app.api.deps import NO_DB_MSG
 from app.database import SessionLocal
+from app.config import get_scan_interval_hours, get_scheduler_enabled
 
 router = APIRouter(prefix="/api/v1/scheduler", tags=["scheduler"])
 
@@ -15,10 +16,10 @@ def scheduler_status():
     job = scheduler.get_job(JOB_ID)
     next_run = getattr(job, "next_run_time", None) if job else None
     return SchedulerStatus(
-        enabled=SCHEDULER_ENABLED,
+        enabled=get_scheduler_enabled(),
         running=scheduler.running,
         job_registered=job is not None,
-        interval_hours=SCAN_INTERVAL_HOURS,
+        interval_hours=get_scan_interval_hours(),
         next_run_time=next_run.isoformat() if next_run else None,
     )
 

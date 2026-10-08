@@ -9,6 +9,7 @@ real (ej. token firmado, API key, OAuth, lista blanca de IPs autorizadas, etc.).
 """
 
 import hmac
+import os
 
 from app.config import PROVIDER_PIN
 
@@ -31,14 +32,14 @@ def authorize_tcp_scan(pin: str | None) -> bool:
     devolver un mensaje claro al usuario sin haber disparado ningún
     socket todavía.
     """
-    if not PROVIDER_PIN:
-        raise MissingProviderPinError(
+
+    provider_pin = os.getenv("PROVIDER_PIN")
+    if not provider_pin:
+        raise MissingProviderPinError( 
             "PROVIDER_PIN no está configurado en el entorno (.env). "
-            "Defina la variable antes de habilitar consultas TCP."
-        )
-    if not pin or not hmac.compare_digest(pin.encode(), PROVIDER_PIN.encode()):
+            "Defina la variable antes de habilitar consultas TCP.")
+    if not pin or not hmac.compare_digest(pin.encode(), provider_pin.encode()):
         raise UnauthorizedTCPScanError(
             "PIN de autorización inválido. Las consultas vía Sockets TCP "
-            "requieren autorización explícita del proveedor."
-        )
+            "requieren autorización explícita del proveedor.")
     return True

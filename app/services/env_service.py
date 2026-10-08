@@ -121,7 +121,18 @@ def update_env_file(data: dict) -> tuple[bool, str | None, bool]:
             os.environ.pop(key, None)
 
     after = _raw()
-    restart_required = any(current.get(k) != after.get(k) for k in MANAGED_KEYS)
+    restart_required =     HOT_KEYS = {"SCHEDULER_ENABLED", "SCAN_INTERVAL_HOURS", "SCAN_CONCURRENCY",
+                "SCAN_TIMEOUT"}
+    after = _raw()
+    restart_required = any(
+        current.get(k) != after.get(k) for k in MANAGED_KEYS if k not in HOT_KEYS
+    )
+    hot_changed = any(current.get(k) != after.get(k) for k in HOT_KEYS)
+
+    if hot_changed:
+        from app.services.scheduler import apply_schedule
+        apply_schedule()
+
 
     db_configured = bool(mapping["DATABASE_URL"])
     warning = None if db_configured else (

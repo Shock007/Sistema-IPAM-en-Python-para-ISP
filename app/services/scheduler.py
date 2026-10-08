@@ -18,8 +18,12 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.config import SCAN_CONCURRENCY, SCAN_INTERVAL_HOURS, SCAN_TIMEOUT
 from app.crud import subnet as subnet_crud
-from app.database import SessionLocal
 from app.services.range_scanner import ips_from_network, run_range_scan
+from app.config import (
+    get_scan_concurrency, get_scan_interval_hours,
+    get_scan_timeout, get_scheduler_enabled,
+)
+from app.database import SessionLocal
 
 logger = logging.getLogger("ipam.scheduler")
 
@@ -65,7 +69,9 @@ def run_scheduled_audit() -> dict:
                     continue
 
                 summary = run_range_scan(
-                    db, ips, concurrency=SCAN_CONCURRENCY, timeout=SCAN_TIMEOUT
+                    db, ips,
+                    concurrency=get_scan_concurrency(),
+                    timeout=get_scan_timeout(),
                 )
                 resumen["subredes_escaneadas"] += 1
                 resumen["total_ips"] += summary["total"]
@@ -93,28 +99,52 @@ def run_scheduled_audit() -> dict:
     return resumen
 
 
+def _add_job(hours: int) -> None:
+    scheduler.add_job(
+        run_scheduled_audit,
+        trigger=IntervalTrigger(hours=hours),
+        id=JOB_ID,
+        name=f"Auditoría automática de red cada {hours}h",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+
 def start_scheduler() -> None:
     """Registra el job periódico e inicia el scheduler. Idempotente."""
-
     if SessionLocal is None:
         logger.warning("Scheduler no iniciado: no hay base de datos configurada.")
         return
-
     if scheduler.running:
         return
-
-    scheduler.add_job(
-        run_scheduled_audit,
-        trigger=IntervalTrigger(hours=SCAN_INTERVAL_HOURS),
-        id=JOB_ID,
-        name=f"Auditoría automática de red cada {SCAN_INTERVAL_HOURS}h",
-        replace_existing=True,
-        max_instances=1,  # evita solapar corridas si una tarda más que el intervalo
-        coalesce=True,    # si se pierden ejecuciones (server caído), solo corre una al volver
-    )
+    hours = get_scan_interval_hours()
+    _add_job(hours)
     scheduler.start()
-    logger.info("Scheduler iniciado: auditoría cada %s horas.", SCAN_INTERVAL_HOURS)
+    logger.info("Scheduler iniciado: auditoría cada %s horas.", hours)
 
+
+def apply_schedule() -> str:
+    """Aplica en caliente intervalo y estado del .env. Devuelve un resumen."""
+    if SessionLocal is None:
+        shutdown_scheduler()
+        return "Sin base de datos: scheduler detenido."
+
+    if not get_scheduler_enabled():
+        if scheduler.running:
+            job = scheduler.get_job(JOB_ID)
+            if job:
+                scheduler.remove_job(JOB_ID)
+        return "Auditoría automática apagada."
+
+    hours = get_scan_interval_hours()
+    if not scheduler.running:
+        _add_job(hours)
+        scheduler.start()
+    else:
+        _add_job(hours)  # replace_existing recalcula la próxima ejecución
+    logger.info("Scheduler reprogramado: cada %s horas.", hours)
+    return f"Auditoría reprogramada cada {hours} h."
 
 def shutdown_scheduler() -> None:
     if scheduler.running:
